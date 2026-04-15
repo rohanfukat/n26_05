@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Upload, Trash2, Check } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 
 import PageLayout from '../components/PageLayout'
+import CitizenNav from '../components/CitizenNav'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 
 import { useComplaints } from '../hooks/useComplaints'
 import { useUser } from '../context/UserContext'
-import { getPriorityBadge } from '../utils/priorityCalculation'
 
 export default function ComplaintForm() {
   const navigate = useNavigate()
@@ -20,7 +19,6 @@ export default function ComplaintForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
-  const [dragActive, setDragActive] = useState(false)
   const [errors, setErrors] = useState({})
   const [submissionError, setSubmissionError] = useState('')
   const [successData, setSuccessData] = useState(null)
@@ -77,7 +75,10 @@ export default function ComplaintForm() {
     return Object.keys(newErrors).length === 0
   }
 
-  const processFile = (file) => {
+  const handleFileInput = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
     if (file.type.startsWith('image/') || file.type === 'application/pdf') {
       setUploadedFile({
         name: file.name,
@@ -87,31 +88,6 @@ export default function ComplaintForm() {
     } else {
       alert('Only image or PDF files allowed.')
     }
-  }
-
-  const handleFileInput = (e) => {
-    const file = e.target.files?.[0]
-    if (file) processFile(file)
-  }
-
-  const handleDrag = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else {
-      setDragActive(false)
-    }
-  }
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-
-    const file = e.dataTransfer.files?.[0]
-    if (file) processFile(file)
   }
 
   const handleSubmit = async (e) => {
@@ -165,8 +141,9 @@ export default function ComplaintForm() {
 
   return (
     <PageLayout>
-      <div className="min-h-screen flex items-center justify-center px-4 py-10">
+      <div className="min-h-screen flex flex-col items-center px-4 py-10">
         <div className="w-full max-w-2xl">
+          <CitizenNav />
 
           {!isSuccess ? (
             <Card className="p-8">
@@ -184,6 +161,7 @@ export default function ComplaintForm() {
 
               <form onSubmit={handleSubmit} className="space-y-6">
 
+                {/* Title */}
                 <Input
                   label="Complaint Title"
                   name="title"
@@ -194,61 +172,33 @@ export default function ComplaintForm() {
                   required
                 />
 
-                <div>
-                  <label className="block font-medium mb-2">Description</label>
+                {/* Description (same UI via textarea support) */}
+                <Input
+                  label="Description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  placeholder="Enter complaint details..."
+                  error={errors.description}
+                  required
+                  as="textarea"
+                  rows={8}
+                  className="min-h-[180px]"
+                />
 
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows="6"
-                    className="w-full border rounded-xl p-4"
-                    placeholder="Enter complaint details..."
-                  />
+                {/* File Upload (consistent UI) */}
+                <Input
+                  label="Attachment (Optional)"
+                  type="file"
+                  name="file"
+                  onChange={handleFileInput}
+                />
 
-                  {errors.description && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.description}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block font-medium mb-2">
-                    Attachment (Optional)
-                  </label>
-
-                  <div
-                    onDragEnter={handleDrag}
-                    onDragOver={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDrop={handleDrop}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center ${
-                      dragActive ? 'border-blue-500' : 'border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      id="file-upload"
-                      className="hidden"
-                      onChange={handleFileInput}
-                    />
-
-                    <label htmlFor="file-upload" className="cursor-pointer">
-                      <Upload className="mx-auto mb-2" />
-                      <p>
-                        {uploadedFile
-                          ? uploadedFile.name
-                          : 'Click or Drag file here'}
-                      </p>
-                    </label>
-                  </div>
-                </div>
-
+                {/* Uploaded File Preview */}
                 {uploadedFile && (
-                  <div className="flex justify-between items-center bg-green-50 p-3 rounded-xl">
+                  <div className="flex justify-between items-center bg-sky-50 p-3 rounded-xl border border-sky-200 text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
                     <div className="flex items-center gap-2">
-                      <Check className="text-green-600" />
+                      <Check className="text-sky-600" />
                       <span>{uploadedFile.name}</span>
                     </div>
 

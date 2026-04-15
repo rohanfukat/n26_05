@@ -15,6 +15,7 @@ import DepartmentDashboard from './pages/DepartmentDashboard'
 import AnalyticsHotspots from './pages/AnalyticsHotspots'
 import SocialMediaMonitoring from './pages/SocialMediaMonitoring'
 import ComplaintTracking from './pages/ComplaintTracking'
+import NeighborhoodComplaints from './pages/NeighborhoodComplaints'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
             {/* Citizen Routes */}
             <Route path="/user-dashboard" element={<CitizenDashboard />} />
             <Route path="/complaint/:complaintId" element={<ComplaintTracking />} />
+            <Route path="/neighborhood" element={<NeighborhoodComplaints />} />
 
             {/* Admin Routes */}
             <Route path="/admin-dashboard" element={<AdminDashboard />} />

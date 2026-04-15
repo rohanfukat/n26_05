@@ -14,7 +14,7 @@ export function BarChart({ data = [], width = 300, height = 140, padding = 8 }) 
         return (
           <g key={i}>
             <rect x={x} y={y} width={barWidth - 12} height={h} rx={4} fill={d.color || '#3b82f6'} />
-            <text x={x + (barWidth - 12) / 2} y={height - 6} fontSize="10" textAnchor="middle" fill="#475569">{d.label}</text>
+            <text x={x + (barWidth - 12) / 2} y={height - 6} fontSize="10" textAnchor="middle" fill="#94a3b8">{d.label}</text>
           </g>
         )
       })}

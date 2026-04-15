@@ -114,6 +114,17 @@ export const apiGetCitizenComplaints = async (citizenEmail) => {
   return { success: true, data: response.data.map(normalizeComplaint) }
 }
 
+// Fetch all complaints for a given pin code / neighborhood
+// Backend should accept GET /api/complaints?pinCode=<pinCode>
+export const apiGetNeighborhoodComplaints = async (pinCode) => {
+  const query = new URLSearchParams()
+  if (pinCode) query.append('pinCode', pinCode)
+  const response = await request(`/complaints?${query.toString()}`)
+  if (!response.success) return response
+
+  return { success: true, data: response.data.map(normalizeComplaint) }
+}
+
 export const apiGetComplaintTimeline = async (complaintId) => {
   const response = await request(`/complaints/${encodeURIComponent(complaintId)}/timeline`)
   if (!response.success) return response

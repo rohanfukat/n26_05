@@ -1,8 +1,9 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useUser } from '../context/UserContext'
 import AnimatedBackground from './AnimatedBackground'
+import DarkBackground from './DarkBackground'
 import ThemeToggle from './ThemeToggle'
 import Notifications from './Notifications'
 import Button from './ui/Button'
@@ -15,6 +16,9 @@ export default function PageLayout({
 }) {
   const { isAuthenticated, logout } = useUser()
   const navigate = useNavigate()
+  const location = useLocation()
+  const GLOBE_ROUTES = ['/', '/role-selection']
+  const showGlobe = GLOBE_ROUTES.includes(location.pathname)
 
   const handleLogout = () => {
     logout()
@@ -39,7 +43,7 @@ export default function PageLayout({
   }, [nav])
   return (
     <div className="relative min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
-      <AnimatedBackground />
+      {showGlobe ? <AnimatedBackground /> : <DarkBackground />}
 
       <div className="relative z-50 mx-auto w-full max-w-7xl px-4">
         {/* Chrome-like back/forward controls at top-left */}
