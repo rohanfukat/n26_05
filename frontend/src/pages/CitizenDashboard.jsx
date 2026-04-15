@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, FileText, Calendar, MapPin, User, Phone, Mail, BarChart3, PieChart } from 'lucide-react'
+import { Plus, FileText, Calendar, MapPin, User, Phone, Mail, BarChart3, PieChart, Home } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
+import CitizenNav from '../components/CitizenNav'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useComplaints } from '../hooks/useComplaints'
@@ -73,32 +74,11 @@ export default function CitizenDashboard() {
           initial="hidden"
           animate="visible"
         >
-          {/* Header */}
-          <motion.div variants={itemVariants} className="mb-6 space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                  My Complaints
-                </h1>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Track and manage all your filed complaints in one place
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => navigate('/complaint')}
-                  className="rounded-2xl border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/10 hover:bg-blue-700"
-                >
-                  Add Complaint
-                </button>
-                <button
-                  onClick={() => navigate('/user-dashboard')}
-                  className="rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100"
-                >
-                  View Complaints
-                </button>
-              </div>
-            </div>
+          {/* Nav + Header */}
+          <motion.div variants={itemVariants} className="mb-6">
+            <CitizenNav />
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-1">My Complaints</h1>
+            <p className="text-slate-500 dark:text-slate-400">Track and manage all your filed complaints.</p>
           </motion.div>
 
           {/* Stats Overview */}
@@ -128,44 +108,80 @@ export default function CitizenDashboard() {
           </motion.div>
 
           {/* Charts Section */}
-          {myComplaints.length > 0 && (
-            <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              {/* Status Distribution - Bar Chart */}
+          <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* Complaint Overview - Bar Chart */}
               <Card className="p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <BarChart3 className="h-5 w-5 text-blue-500" />
-                  <h3 className="text-lg font-bold">Status Distribution</h3>
+                  <h3 className="text-lg font-bold">Complaint Overview</h3>
                 </div>
                 <div className="flex justify-center">
                   <BarChart
-                    data={['resolved', 'in_progress', 'pending'].map(status => ({
-                      label: status.replace('_', ' ').substring(0, 3).toUpperCase(),
-                      value: myComplaints.filter(c => c.status === status).length,
-                      color: status === 'resolved' ? '#10b981' : status === 'in_progress' ? '#3b82f6' : '#f59e0b',
+                    data={[
+                      { label: 'Filed', value: myComplaints.length, color: '#3b82f6' },
+                      { label: 'Resolved', value: myComplaints.filter(c => c.status === 'resolved').length, color: '#10b981' },
+                      { label: 'Pending', value: myComplaints.filter(c => c.status !== 'resolved').length, color: '#f59e0b' },
+                    ]}
+                    width={280}
+                    height={160}
+                  />
+                </div>
+                <div className="mt-3 flex justify-around text-xs">
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-blue-500" />Filed</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />Resolved</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-amber-500" />Not Resolved</span>
+                </div>
+              </Card>
+
+              {/* Resolution Status - Pie Chart */}
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <PieChart className="h-5 w-5 text-emerald-500" />
+                  <h3 className="text-lg font-bold">Resolution Status</h3>
+                </div>
+                <div className="flex justify-center mb-4">
+                  <PieChartComponent
+                    data={[
+                      { label: 'Resolved', value: myComplaints.filter(c => c.status === 'resolved').length, color: '#10b981' },
+                      { label: 'Not Resolved', value: myComplaints.filter(c => c.status !== 'resolved').length, color: '#f59e0b' },
+                    ]}
+                    size={120}
+                  />
+                </div>
+                <div className="text-xs space-y-2">
+                  {[
+                    { label: 'Resolved', color: '#10b981', count: myComplaints.filter(c => c.status === 'resolved').length },
+                    { label: 'Not Resolved', color: '#f59e0b', count: myComplaints.filter(c => c.status !== 'resolved').length },
+                  ].map(({ label, color, count }) => (
+                    <div key={label} className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                        {label}
+                      </span>
+                      <span className="font-bold">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Priority Breakdown - Bar Chart */}
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart3 className="h-5 w-5 text-purple-500" />
+                  <h3 className="text-lg font-bold">Priority Breakdown</h3>
+                </div>
+                <div className="flex justify-center">
+                  <BarChart
+                    data={['critical', 'high', 'medium', 'low'].map(priority => ({
+                      label: priority.substring(0, 3).toUpperCase(),
+                      value: myComplaints.filter(c => c.priority === priority).length,
+                      color: getPriorityColor(priority),
                     }))}
                     width={280}
                     height={160}
                   />
                 </div>
-              </Card>
-
-              {/* Priority Distribution - Pie Chart */}
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <PieChart className="h-5 w-5 text-purple-500" />
-                  <h3 className="text-lg font-bold">Priority Breakdown</h3>
-                </div>
-                <div className="flex justify-center mb-4">
-                  <PieChartComponent
-                    data={['critical', 'high', 'medium', 'low'].map(priority => ({
-                      label: priority,
-                      value: myComplaints.filter(c => c.priority === priority).length,
-                      color: getPriorityColor(priority),
-                    }))}
-                    size={120}
-                  />
-                </div>
-                <div className="text-xs space-y-1">
+                <div className="mt-3 text-xs space-y-1">
                   {['critical', 'high', 'medium', 'low'].map(p => (
                     <div key={p} className="flex justify-between">
                       <span className="capitalize">{p}</span>
@@ -174,32 +190,7 @@ export default function CitizenDashboard() {
                   ))}
                 </div>
               </Card>
-
-              {/* Category Distribution - Bar Chart */}
-              <Card className="p-6">
-                <h3 className="text-lg font-bold mb-4">Top Categories</h3>
-                <div className="flex justify-center">
-                  <BarChart
-                    data={Object.entries(
-                      myComplaints.reduce((acc, c) => {
-                        acc[c.category] = (acc[c.category] || 0) + 1
-                        return acc
-                      }, {})
-                    )
-                      .sort(([, a], [, b]) => b - a)
-                      .slice(0, 5)
-                      .map(([category, count]) => ({
-                        label: category.substring(0, 3).toUpperCase(),
-                        value: count,
-                        color: '#8b5cf6',
-                      }))}
-                    width={280}
-                    height={160}
-                  />
-                </div>
-              </Card>
             </motion.div>
-          )}
 
           {/* Complaints List */}
           {myComplaints.length > 0 ? (

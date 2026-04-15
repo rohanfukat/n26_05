@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, TrendingUp, AlertTriangle, BarChart3, Clock, Users, PieChart } from 'lucide-react'
+import { Search, TrendingUp, AlertTriangle, BarChart3, Clock, Users, PieChart, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
@@ -341,6 +341,35 @@ export default function AdminDashboard() {
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Description</p>
                         <p className="mt-2 text-slate-700 dark:text-slate-300">{selectedComplaint.description}</p>
+                      </div>
+                      {/* Evidence Image */}
+                      <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Evidence Image</p>
+                        {selectedComplaint.imageUrl ? (
+                          <div className="space-y-3">
+                            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 max-h-52 bg-slate-200 dark:bg-slate-800">
+                              <img
+                                src={selectedComplaint.imageUrl}
+                                alt="Complaint evidence"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <a
+                              href={selectedComplaint.imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              Open full image
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500">
+                            <ImageIcon className="h-8 w-8" />
+                            <p className="text-sm italic">No image attached to this complaint.</p>
+                          </div>
+                        )}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
