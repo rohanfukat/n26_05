@@ -4,7 +4,7 @@ SQLAlchemy models for:
   - Grievance    → stores finalised complaints
 """
 
-from sqlalchemy import Column, String, DateTime, Text
+from sqlalchemy import Column, String, DateTime, Text, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from database import Base
@@ -29,6 +29,10 @@ class UserSession(Base):
     location = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
 
+    # Optional geo-coordinates parsed from user's location message
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
@@ -41,19 +45,30 @@ class Grievance(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     # Unique human-readable complaint ID, e.g. GRV-<short-uuid>
-    complaint_id = Column(String, unique=True, nullable=False, index=True)
+    complaint_id = Column(String, unique=True, nullable=True, index=True)
 
-    user_phone = Column(String, nullable=False, index=True)
-    issue = Column(Text, nullable=False)
-    description = Column(Text, nullable=False)
-    location = Column(Text, nullable=False)
+    # identity: either a user_id (UUID string) when submitted via API/frontend,
+    #           or a phone number (E.164) when submitted via WhatsApp chatbot.
+    identity = Column(String, nullable=True, index=True)
+
+    issue = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    location = Column(Text, nullable=True)
+
+    # Geographic coordinates (optional)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
+    # Media attachments (Cloudinary URLs or similar)
+    before_photo = Column(Text, nullable=True)
+    after_photo = Column(Text, nullable=True)
 
     # Auto-classified fields
-    category = Column(String, nullable=False, default="General")  # e.g. Water, Road, Electricity
-    priority = Column(String, nullable=False, default="medium")   # high | medium
+    category = Column(String, nullable=True, default="General")  # e.g. Water, Road, Electricity
+    priority = Column(String, nullable=True, default="medium")   # high | medium
 
-    status = Column(String, nullable=False, default="pending")    # pending | in-progress | resolved
-    source = Column(String, nullable=False, default="whatsapp")
+    status = Column(String, nullable=True, default="pending")    # pending | in-progress | resolved
+    source = Column(String, nullable=True, default="whatsapp")   # whatsapp | api
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

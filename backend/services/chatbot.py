@@ -10,6 +10,7 @@ webhook route. It:
   5. Returns the reply string to send back via WhatsApp
 """
 
+import re
 from sqlalchemy.orm import Session as DBSession
 from services.session_service import get_or_create_session, update_session, reset_session
 from services.grievance_service import save_grievance
@@ -17,6 +18,25 @@ from services.grievance_service import save_grievance
 
 # ── Greeting triggers ─────────────────────────────────────────────────────────
 GREETINGS = {"hi", "hello", "hey", "helo", "hii", "namaste", "start"}
+
+# ── Lat/Lng pattern: matches "12.9716, 77.5946" or "12.9716 77.5946" ──────────
+_LATLNG_RE = re.compile(
+    r"(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)"
+)
+
+
+def _parse_latlng(text: str):
+    """
+    Try to extract (latitude, longitude) floats from a free-text string.
+    Returns (float, float) on success, or (None, None) if not found.
+    """
+    match = _LATLNG_RE.search(text)
+    if match:
+        lat, lng = float(match.group(1)), float(match.group(2))
+        # Sanity-check valid coordinate ranges
+        if -90 <= lat <= 90 and -180 <= lng <= 180:
+            return lat, lng
+    return None, None
 
 
 def handle_message(phone: str, text: str, db: DBSession) -> str:
@@ -63,7 +83,14 @@ def handle_message(phone: str, text: str, db: DBSession) -> str:
 
     # ── Step: ask_location  →  user is providing the location ────────────────
     if step == "ask_location":
-        update_session(phone, db, location=text_clean, step="ask_description")
+        lat, lng = _parse_latlng(text_clean)
+        update_session(
+            phone, db,
+            location=text_clean,
+            latitude=lat,
+            longitude=lng,
+            step="ask_description",
+        )
         return "📝 Please describe your issue briefly"
 
     # ── Step: ask_description  →  user is providing the description ──────────

@@ -10,6 +10,7 @@ import models.grievance  # sessions + grievances tables
 
 from routes.auth import router as auth_router
 from routes.webhook import router as webhook_router
+from routes.grievance import router as grievance_router
 
 load_dotenv()
 
@@ -24,7 +25,8 @@ app = FastAPI(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router)
-app.include_router(webhook_router)   # GET /webhook + POST /webhook
+app.include_router(webhook_router)    # GET /webhook + POST /webhook
+app.include_router(grievance_router)  # POST/GET/PATCH /grievances
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
