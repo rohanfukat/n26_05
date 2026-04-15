@@ -77,3 +77,44 @@ class TokenData(BaseModel):
     role: str
     city: str
     full_name: str
+
+
+# ─────────────────────────────────────────
+#  GRIEVANCE
+# ─────────────────────────────────────────
+
+class GrievanceUpdateRequest(BaseModel):
+    """Used by admins to update any field of an existing grievance."""
+    issue: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    category: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    before_photo: Optional[str] = None
+    after_photo: Optional[str] = None
+
+
+class GrievanceResponse(BaseModel):
+    """Serialised Grievance row returned to the client."""
+    id: str
+    complaint_id: Optional[str] = None
+    identity: Optional[str] = None
+    issue: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    category: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    before_photo: Optional[str] = None
+    after_photo: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True

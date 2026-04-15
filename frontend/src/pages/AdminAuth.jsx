@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Mail, Lock, Shield, AlertCircle, CheckCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Mail, Lock, Shield } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
@@ -17,7 +18,6 @@ export default function AdminAuth() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState({})
-  const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -50,13 +50,14 @@ export default function AdminAuth() {
 
     setIsLoading(true)
     try {
-      const result = await login(formData.emailOrId, formData.password)
+      const result = await login(formData.emailOrId, formData.password, 'admin')
       if (result.success) {
-        setSuccessMessage('Login successful. Redirecting to admin dashboard...')
+        toast.success('Login Successful')
         setTimeout(() => {
           navigate('/admin-dashboard')
-        }, 1000)
+        }, 800)
       } else {
+        toast.error(result.error || 'Login failed.')
         setErrors({ form: result.error })
       }
     } finally {
@@ -112,24 +113,6 @@ export default function AdminAuth() {
                 Access the management dashboard with your official credentials.
               </p>
             </motion.div>
-
-            {successMessage && (
-              <motion.div
-                variants={itemVariants}
-                className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
-              >
-                {successMessage}
-              </motion.div>
-            )}
-
-            {(errors.form || error) && (
-              <motion.div
-                variants={itemVariants}
-                className="mb-6 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200"
-              >
-                {errors.form || error}
-              </motion.div>
-            )}
 
             <motion.form variants={itemVariants} onSubmit={handleSubmit} className="space-y-5">
               <Input

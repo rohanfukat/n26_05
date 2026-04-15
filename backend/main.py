@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from database import get_db, engine, Base
 from sqlalchemy import text
+import os
 
 # ── Register all ORM models BEFORE create_all() ───────────────────────────────
 import models.user       # users table
@@ -10,6 +12,7 @@ import models.grievance  # sessions + grievances tables
 
 from routes.auth import router as auth_router
 from routes.webhook import router as webhook_router
+from routes.grievance import router as grievance_router
 
 load_dotenv()
 
@@ -22,9 +25,24 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173",
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router)
-app.include_router(webhook_router)   # GET /webhook + POST /webhook
+app.include_router(webhook_router)    # GET /webhook + POST /webhook
+app.include_router(grievance_router)  # POST/GET/PATCH /grievances
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

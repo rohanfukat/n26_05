@@ -36,10 +36,12 @@ def save_grievance(user_session: UserSession, db: DBSession) -> Grievance:
 
     grievance = Grievance(
         complaint_id=complaint_id,
-        user_phone=user_session.phone,
+        identity=user_session.phone,   # WhatsApp source → phone number as identity
         issue=user_session.issue or "",
         description=user_session.description or "",
         location=user_session.location or "",
+        latitude=user_session.latitude,
+        longitude=user_session.longitude,
         category=category,
         priority=priority,
         status="pending",

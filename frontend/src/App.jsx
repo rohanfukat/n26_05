@@ -1,9 +1,11 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { ThemeProvider } from './context/ThemeContext'
 import { NotificationsProvider } from './context/NotificationsContext'
 import { UserProvider } from './context/UserContext'
 import { NavigationProvider } from './context/NavigationContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import Welcome from './pages/Welcome'
 import RoleSelection from './pages/RoleSelection'
 import UserAuth from './pages/UserAuth'
@@ -20,32 +22,93 @@ import NeighborhoodComplaints from './pages/NeighborhoodComplaints'
 export default function App() {
   return (
     <ThemeProvider>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: { borderRadius: '10px', fontWeight: '500' },
+        }}
+      />
       <UserProvider>
         <NotificationsProvider userId="demo_user">
           <Router>
             <NavigationProvider>
               <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Welcome />} />
-            <Route path="/role-selection" element={<RoleSelection />} />
-            <Route path="/user-auth" element={<UserAuth />} />
-            <Route path="/admin-auth" element={<AdminAuth />} />
+                {/* ── Public Routes ─────────────────────────────────────── */}
+                <Route path="/" element={<Welcome />} />
+                <Route path="/role-selection" element={<RoleSelection />} />
+                <Route path="/user-auth" element={<UserAuth />} />
+                <Route path="/admin-auth" element={<AdminAuth />} />
 
-            {/* Complaint Filing */}
-            <Route path="/complaint" element={<ComplaintForm />} />
+                {/* ── Citizen Protected Routes ───────────────────────────── */}
+                <Route
+                  path="/complaint"
+                  element={
+                    <ProtectedRoute allowedRoles={['user']} redirectTo="/user-auth">
+                      <ComplaintForm />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/user-dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['user']} redirectTo="/user-auth">
+                      <CitizenDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/complaint/:complaintId"
+                  element={
+                    <ProtectedRoute allowedRoles={['user']} redirectTo="/user-auth">
+                      <ComplaintTracking />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/neighborhood"
+                  element={
+                    <ProtectedRoute allowedRoles={['user']} redirectTo="/user-auth">
+                      <NeighborhoodComplaints />
+                    </ProtectedRoute>
+                  }
+                />
 
-            {/* Citizen Routes */}
-            <Route path="/user-dashboard" element={<CitizenDashboard />} />
-            <Route path="/complaint/:complaintId" element={<ComplaintTracking />} />
-            <Route path="/neighborhood" element={<NeighborhoodComplaints />} />
+                {/* ── Admin Protected Routes ─────────────────────────────── */}
+                <Route
+                  path="/admin-dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']} redirectTo="/admin-auth">
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/department-dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']} redirectTo="/admin-auth">
+                      <DepartmentDashboard />
+                    </ProtectedRoute>
+                  }
+                />
 
-            {/* Admin Routes */}
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
-            <Route path="/department-dashboard" element={<DepartmentDashboard />} />
-
-            {/* Analytics & Monitoring */}
-            <Route path="/analytics" element={<AnalyticsHotspots />} />
-            <Route path="/social-media" element={<SocialMediaMonitoring />} />
+                {/* ── Analytics & Monitoring (admin only) ───────────────── */}
+                <Route
+                  path="/analytics"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']} redirectTo="/admin-auth">
+                      <AnalyticsHotspots />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/social-media"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']} redirectTo="/admin-auth">
+                      <SocialMediaMonitoring />
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
             </NavigationProvider>
           </Router>

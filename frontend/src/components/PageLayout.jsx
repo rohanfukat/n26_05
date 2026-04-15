@@ -25,6 +25,7 @@ export default function PageLayout({
   const handleLogout = () => {
     logout()
     navigate('/')
+    rea
   }
   const nav = useNavigation()
 

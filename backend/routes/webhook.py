@@ -92,7 +92,11 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
                     # ── Run chatbot logic ─────────────────────────────────
                     reply = handle_message(phone=from_number, text=text, db=db)
 
-                    # ── Send reply via WhatsApp ───────────────────────────
+                    # ── Send reply via WhatsApp (None = silently drop) ────
+                    if reply is None:
+                        print(f"[Webhook] Rate-limited (silent drop) for {from_number}")
+                        continue
+
                     result = send_whatsapp_message(to=from_number, message=reply)
                     print(f"[Webhook] Reply sent to {from_number}: {result}")
 
