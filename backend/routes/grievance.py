@@ -21,6 +21,8 @@ from models.schemas import GrievanceUpdateRequest, GrievanceResponse
 from utils.auth import decode_access_token
 from utils.classifier import classify_grievance
 from utils.cloudinary import upload_image
+from classifier import analyze_and_compare
+from cleaner import clean_text
 
 router = APIRouter(prefix="/grievances", tags=["Grievances"])
 
@@ -105,8 +107,32 @@ async def create_grievance(
     # ── Upload before_photo to Cloudinary if provided ────────────────────────
     photo_url: Optional[str] = None
     if before_photo is not None:
+        # Read bytes first (stream is consumed after first read)
+        image_bytes = await before_photo.read()
+
+        # ── AI validation: ensure image aligns with description ───────────────
+        combined_text = f"{issue or ''} {description or ''}".strip()
+        if combined_text:
+            cleaned = clean_text(combined_text)
+            ai_result = await analyze_and_compare(combined_text, cleaned, image_bytes)
+
+            comparison = ai_result.get("comparison", {})
+            match_status = comparison.get("match_status", "unclear")
+
+            if match_status == "mismatched":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "Our AI isn't able to find similarities between the image "
+                        "you uploaded and the description provided. Please upload a "
+                        "relevant image or update your description."
+                    ),
+                )
+
+        # ── Upload validated image to Cloudinary ─────────────────────────────
         try:
-            photo_url = upload_image(before_photo.file, folder="grievances/before")
+            import io
+            photo_url = upload_image(io.BytesIO(image_bytes), folder="grievances/before")
         except RuntimeError as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
