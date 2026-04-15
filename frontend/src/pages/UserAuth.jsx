@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Mail, Phone, Lock, MapPin, AlertCircle, CheckCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { User, Mail, Phone, Lock, MapPin } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
@@ -11,13 +12,12 @@ import { useUser } from '../context/UserContext'
 export default function UserAuth() {
   const navigate = useNavigate()
   const { login, register, isAuthenticated, error, clearError } = useUser()
-  
+
   const [mode, setMode] = useState('login')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState({})
-  const [successMessage, setSuccessMessage] = useState('')
 
   const [formData, setFormData] = useState({
     // Login fields
@@ -33,10 +33,10 @@ export default function UserAuth() {
     pinCode: '',
   })
 
-  // Redirect if authenticated
+  // Redirect if already authenticated as user
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/complaint')
+      navigate('/user-dashboard')
     }
   }, [isAuthenticated, navigate])
 
@@ -85,34 +85,36 @@ export default function UserAuth() {
     try {
       let result
       if (mode === 'login') {
-        result = await login(formData.emailOrPhone, formData.password)
+        result = await login(formData.emailOrPhone, formData.password, 'user', formData.rememberMe)
       } else {
         result = await register({
           name: formData.fullName,
           email: formData.email,
           phone: formData.phone,
           city: formData.city,
-          pinCode: formData.pinCode,
           password: formData.password,
+          confirmPassword: formData.confirmPassword,
         })
       }
 
       if (result.success) {
         if (mode === 'login') {
-          setSuccessMessage('Login successful! Redirecting to complaint form...')
+          toast.success('Login Successful')
           setTimeout(() => {
-            navigate('/complaint')
-          }, 1000)
+            navigate('/user-dashboard')
+          }, 800)
         } else {
-          setSuccessMessage('Registration complete. Please log in with your new credentials.')
+          toast.success('Account created! Please log in with your credentials.')
           setMode('login')
           setFormData(prev => ({
             ...prev,
+            emailOrPhone: formData.email,
             password: '',
             confirmPassword: '',
           }))
         }
       } else {
+        toast.error(result.error || 'Something went wrong.')
         setErrors({ form: result.error })
       }
     } finally {
@@ -147,30 +149,6 @@ export default function UserAuth() {
           animate="visible"
         >
           <Card className="p-8 md:p-10">
-            {/* Success Message */}
-            {successMessage && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 flex items-center gap-3"
-              >
-                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                <span className="text-sm font-semibold text-green-700 dark:text-green-300">{successMessage}</span>
-              </motion.div>
-            )}
-
-            {/* Error Message */}
-            {(errors.form || error) && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 flex items-center gap-3"
-              >
-                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                <span className="text-sm font-semibold text-red-700 dark:text-red-300">{errors.form || error}</span>
-              </motion.div>
-            )}
-
             {/* Heading */}
             <motion.div variants={itemVariants} className="mb-8">
               <h2 className="text-3xl font-bold text-center mb-2">
@@ -194,7 +172,6 @@ export default function UserAuth() {
                   onClick={() => {
                     setMode(tab)
                     setErrors({})
-                    setSuccessMessage('')
                     clearError()
                   }}
                   className="flex-1 py-2 px-4 rounded-md font-semibold transition-all duration-300 relative"

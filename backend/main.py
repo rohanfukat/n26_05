@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from database import get_db, engine, Base
 from sqlalchemy import text
+import os
 
 # ── Register all ORM models BEFORE create_all() ───────────────────────────────
 import models.user       # users table
@@ -21,6 +23,20 @@ app = FastAPI(
     title="Unified Grievance Intelligence & Resolution Platform",
     description="Government grievance aggregation, categorisation and resolution tracking API",
     version="1.0.0",
+)
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173",
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
