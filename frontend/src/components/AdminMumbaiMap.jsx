@@ -55,7 +55,7 @@ const AdminMumbaiMap = () => {
   };
 
   return (
-    <div className="w-full h-96 rounded-lg overflow-hidden shadow-lg">
+    <div className="w-full h-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer
         center={[19.0760, 72.8777]} // Mumbai center
         zoom={10}

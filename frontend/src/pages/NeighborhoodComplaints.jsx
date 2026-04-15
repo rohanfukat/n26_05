@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronUp, X, MapPin, Calendar } from 'lucide-react'
+import { ChevronDown, ChevronUp, X, MapPin, Calendar, Heart } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -103,6 +103,10 @@ export default function NeighborhoodComplaints() {
   const [complaints, setComplaints] = useState(MOCK_COMPLAINTS)
   const [loading, setLoading] = useState(false)
   const [selectedComplaint, setSelectedComplaint] = useState(null)
+  const [likes, setLikes] = useState(() =>
+    Object.fromEntries(MOCK_COMPLAINTS.map(c => [c.id, Math.floor(Math.random() * 40) + 2]))
+  )
+  const [liked, setLiked] = useState(new Set())
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
 
@@ -292,15 +296,15 @@ export default function NeighborhoodComplaints() {
               transition={{ duration: 0.2 }}
               onClick={e => e.stopPropagation()}
               style={{ borderRadius: '0.4rem' }}
-              className="w-full max-w-xl max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
+              className="w-full max-w-xl max-h-[85vh] overflow-y-auto bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)]"
             >
               {/* Image */}
               {selectedComplaint.imageUrl ? (
-                <div className="h-48 flex-shrink-0 overflow-hidden border-b border-zinc-800">
+                <div className="h-48 overflow-hidden border-b border-zinc-800">
                   <img src={selectedComplaint.imageUrl} alt="" className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="h-32 flex-shrink-0 bg-zinc-800 flex items-center justify-center border-b border-zinc-800 text-zinc-600">
+                <div className="h-32 bg-zinc-800 flex items-center justify-center border-b border-zinc-800 text-zinc-600">
                   <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 4h.01M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" />
                   </svg>
@@ -308,7 +312,7 @@ export default function NeighborhoodComplaints() {
               )}
 
               {/* Header */}
-              <div className="flex items-start justify-between p-5 border-b border-zinc-800 flex-shrink-0">
+              <div className="flex items-start justify-between p-5 border-b border-zinc-800">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1 capitalize">{selectedComplaint.category}</p>
                   <h2 className="text-base font-bold text-white leading-tight">{selectedComplaint.title}</h2>
@@ -322,7 +326,7 @@ export default function NeighborhoodComplaints() {
               </div>
 
               {/* Body */}
-              <div className="overflow-y-auto p-5 space-y-4">
+              <div className="p-5 space-y-4">
                 <p className="text-sm text-zinc-400 leading-relaxed">{selectedComplaint.description}</p>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -338,6 +342,37 @@ export default function NeighborhoodComplaints() {
                     </div>
                   ))}
                 </div>
+
+                {/* Like button */}
+                <button
+                  onClick={() => {
+                    const id = selectedComplaint.id
+                    setLiked(prev => {
+                      const next = new Set(prev)
+                      if (next.has(id)) {
+                        next.delete(id)
+                        setLikes(l => ({ ...l, [id]: l[id] - 1 }))
+                      } else {
+                        next.add(id)
+                        setLikes(l => ({ ...l, [id]: l[id] + 1 }))
+                      }
+                      return next
+                    })
+                  }}
+                  style={{ borderRadius: '0.4rem' }}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 border transition-all duration-150 text-sm font-medium ${
+                    liked.has(selectedComplaint.id)
+                      ? 'bg-zinc-700 border-zinc-500 text-white'
+                      : 'bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:bg-zinc-700/60 hover:text-white'
+                  }`}
+                >
+                  <Heart
+                    className="h-4 w-4 transition-all duration-150"
+                    fill={liked.has(selectedComplaint.id) ? 'currentColor' : 'none'}
+                  />
+                  {liked.has(selectedComplaint.id) ? 'Liked' : 'Like this complaint'}
+                  <span className="text-zinc-500 font-normal text-xs ml-1">{likes[selectedComplaint.id] ?? 0}</span>
+                </button>
 
                 <Button variant="secondary" onClick={() => setSelectedComplaint(null)} className="w-full">
                   Close

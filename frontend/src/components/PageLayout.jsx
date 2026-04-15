@@ -7,10 +7,12 @@ import DarkBackground from './DarkBackground'
 import Notifications from './Notifications'
 import Button from './ui/Button'
 import CitizenNav from './CitizenNav'
+import AnimatedLogo from './AnimatedLogo'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useNavigation } from '../context/NavigationContext'
 
 const CITIZEN_ROUTES = ['/complaint', '/user-dashboard', '/neighborhood', '/complaint/']
+const NO_ARROWS_ROUTES = ['/admin-dashboard', '/complaint', '/user-dashboard', '/neighborhood', '/complaint/']
 
 export default function PageLayout({
   children,
@@ -39,6 +41,7 @@ export default function PageLayout({
   }, [nav])
 
   const isCitizenRoute = CITIZEN_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r))
+  const hideArrows = NO_ARROWS_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r))
 
   return (
     <div className="relative h-screen w-full bg-[#080808] text-zinc-100 overflow-hidden flex flex-col">
@@ -46,7 +49,8 @@ export default function PageLayout({
 
       {/* Top bar â€” full width */}
       <div className="relative z-50 w-full">
-        {/* Back / Forward â€” fixed top-left */}
+        {/* Back / Forward — fixed top-left */}
+        {!hideArrows && (
         <div className="fixed top-3 left-3 z-[60] flex items-center gap-1.5">
           <button
             aria-label="Back"
@@ -75,6 +79,7 @@ export default function PageLayout({
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
+        )}
 
         {showNav && (
           <motion.nav
@@ -83,8 +88,9 @@ export default function PageLayout({
             transition={{ duration: 0.35, ease: 'easeOut' }}
             className="flex items-center justify-between px-6 py-3 border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md"
           >
-            <div className="pl-14">
-              <span className="text-lg font-semibold tracking-tight text-white">GrievanceFlow</span>
+            <div className="pl-14 flex items-center gap-3">
+              <AnimatedLogo />
+              <span className="text-lg font-semibold tracking-tight text-white" style={{ letterSpacing: '-0.025em' }}>GrievanceFlow</span>
             </div>
 
             <div className="flex items-center gap-3">
