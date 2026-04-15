@@ -9,15 +9,18 @@ export default function Card({
 }) {
   const motionProps = interactive
     ? {
-        whileHover: { scale: 1.02, y: -4 },
+        whileHover: { scale: 1.02, y: -3 },
         whileTap: { scale: 0.98 },
-        transition: { duration: 0.3 },
+        transition: { duration: 0.2, ease: 'easeOut' },
       }
     : {}
 
   return (
     <motion.div
-      className={`relative rounded-[28px] backdrop-blur-2xl ${interactive ? 'cursor-pointer' : ''} bg-white/85 dark:bg-slate-950/75 border border-slate-200/70 dark:border-slate-700/70 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.25)] dark:shadow-[0_30px_80px_-35px_rgba(0,0,0,0.55)] ${className}`}
+      style={{ borderRadius: '0.4rem' }}
+      className={`relative backdrop-blur-sm ${
+        interactive ? 'cursor-pointer' : ''
+      } bg-zinc-900/80 border border-zinc-700/60 shadow-[0_8px_32px_rgba(0,0,0,0.6)] hover:border-zinc-500/60 transition-colors duration-200 ${className}`}
       {...motionProps}
       {...props}
     >

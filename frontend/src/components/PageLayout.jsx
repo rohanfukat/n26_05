@@ -1,14 +1,16 @@
-import React from 'react'
+﻿import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useUser } from '../context/UserContext'
 import AnimatedBackground from './AnimatedBackground'
 import DarkBackground from './DarkBackground'
-import ThemeToggle from './ThemeToggle'
 import Notifications from './Notifications'
 import Button from './ui/Button'
+import CitizenNav from './CitizenNav'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useNavigation } from '../context/NavigationContext'
+
+const CITIZEN_ROUTES = ['/complaint', '/user-dashboard', '/neighborhood', '/complaint/']
 
 export default function PageLayout({
   children,
@@ -26,64 +28,66 @@ export default function PageLayout({
   }
   const nav = useNavigation()
 
-  // keyboard shortcuts: Alt+Left = back, Alt+Right = forward
   React.useEffect(() => {
     const handler = (e) => {
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault()
-        nav.goBack()
-      }
-      if (e.altKey && e.key === 'ArrowRight') {
-        e.preventDefault()
-        nav.goForward()
-      }
+      if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); nav.goBack() }
+      if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); nav.goForward() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [nav])
+
+  const isCitizenRoute = CITIZEN_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r))
+
   return (
-    <div className="relative min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
+    <div className="relative h-screen w-full bg-[#080808] text-zinc-100 overflow-hidden flex flex-col">
       {showGlobe ? <AnimatedBackground /> : <DarkBackground />}
 
-      <div className="relative z-50 mx-auto w-full max-w-7xl px-4">
-        {/* Chrome-like back/forward controls at top-left */}
-        <div className="fixed top-4 left-4 z-60 flex items-center gap-2">
+      {/* Top bar â€” full width */}
+      <div className="relative z-50 w-full">
+        {/* Back / Forward â€” fixed top-left */}
+        <div className="fixed top-3 left-3 z-[60] flex items-center gap-1.5">
           <button
             aria-label="Back"
             onClick={() => nav.goBack()}
             disabled={!nav.canGoBack()}
-            className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition-colors ${nav.canGoBack() ? 'bg-white hover:bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-800/60 opacity-50 cursor-not-allowed'}`}
+            style={{ borderRadius: '0.4rem' }}
+            className={`h-8 w-8 flex items-center justify-center border transition-colors duration-150 ${
+              nav.canGoBack()
+                ? 'bg-zinc-800 border-zinc-700/60 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-40'
+            }`}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
           </button>
           <button
             aria-label="Forward"
             onClick={() => nav.goForward()}
             disabled={!nav.canGoForward()}
-            className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition-colors ${nav.canGoForward() ? 'bg-white hover:bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-800/60 opacity-50 cursor-not-allowed'}`}
+            style={{ borderRadius: '0.4rem' }}
+            className={`h-8 w-8 flex items-center justify-center border transition-colors duration-150 ${
+              nav.canGoForward()
+                ? 'bg-zinc-800 border-zinc-700/60 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-40'
+            }`}
           >
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
+
         {showNav && (
           <motion.nav
-            initial={{ opacity: 0, y: -18 }}
+            initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="relative flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/60 dark:border-slate-700/60 py-5"
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="flex items-center justify-between px-6 py-3 border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md"
           >
-            <div className="space-y-1">
-              <div className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-                GrievanceFlow
-              </div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Formal grievance management for trusted institutions.
-              </p>
+            <div className="pl-14">
+              <span className="text-lg font-semibold tracking-tight text-white">GrievanceFlow</span>
             </div>
 
             <div className="flex items-center gap-3">
               <Notifications />
-              <ThemeToggle />
               {isAuthenticated && (
                 <Button type="button" size="sm" variant="secondary" onClick={handleLogout}>
                   Logout
@@ -92,18 +96,22 @@ export default function PageLayout({
             </div>
           </motion.nav>
         )}
+
+        {/* Citizen sub-nav — always same position on citizen routes */}
+        {showNav && isCitizenRoute && (
+          <div className="px-6 py-2 border-b border-zinc-800/60 bg-zinc-950/70 backdrop-blur-md">
+            <CitizenNav />
+          </div>
+        )}
       </div>
 
       <motion.main
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="relative z-10 flex-1"
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="relative z-10 w-full flex-1 min-h-0 flex flex-col overflow-y-auto"
       >
-        <div className="mx-auto w-full max-w-7xl px-4 py-10 md:py-14">
-          {children}
-        </div>
+        {children}
       </motion.main>
     </div>
   )

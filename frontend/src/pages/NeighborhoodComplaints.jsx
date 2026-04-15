@@ -1,344 +1,352 @@
-import React, { useState, useEffect, useCallback } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  MapPin, BarChart3, PieChart as PieChartIcon, TrendingUp,
-  AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight,
-  RefreshCw, Users,
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, X, MapPin, Calendar } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
-import CitizenNav from '../components/CitizenNav'
 import Card from '../components/ui/Card'
+import Button from '../components/ui/Button'
 import { useUser } from '../context/UserContext'
-import { getPriorityColor, getPriorityBadge } from '../utils/priorityCalculation'
-import { BarChart, PieChart as PieChartComponent, LineChart } from '../components/Charts/Charts'
+import { getPriorityBadge } from '../utils/priorityCalculation'
 import { apiGetNeighborhoodComplaints } from '../services/api'
 
-// ─── Mock data used when backend is unavailable ────────────────────────────
+// ─── Dummy / Mock data (replace with live API when ready) ─────────────────
 const MOCK_COMPLAINTS = [
-  { id: 'N001', title: 'Broken streetlight on MG Road', category: 'infrastructure', priority: 'high', status: 'pending', citizenName: 'Priya S.', createdAt: new Date('2026-03-10'), description: 'Streetlight near junction is broken for 3 weeks.', updates: [] },
-  { id: 'N002', title: 'Overflowing garbage bin near park', category: 'sanitation', priority: 'critical', status: 'in_progress', citizenName: 'Rahul M.', createdAt: new Date('2026-03-15'), description: 'Garbage bin overflowing since last week.', updates: [] },
-  { id: 'N003', title: 'Pothole on main road', category: 'roads', priority: 'high', status: 'resolved', citizenName: 'Anjali K.', createdAt: new Date('2026-02-28'), description: 'Large pothole causing accidents.', updates: [] },
-  { id: 'N004', title: 'Water leakage from pipeline', category: 'water', priority: 'critical', status: 'in_progress', citizenName: 'Vikram T.', createdAt: new Date('2026-03-20'), description: 'Water pipeline burst, wastage for 5 days.', updates: [] },
-  { id: 'N005', title: 'No dustbin near bus stop', category: 'sanitation', priority: 'medium', status: 'pending', citizenName: 'Meena R.', createdAt: new Date('2026-04-01'), description: 'No dustbin available causing littering.', updates: [] },
-  { id: 'N006', title: 'Park benches damaged', category: 'infrastructure', priority: 'low', status: 'resolved', citizenName: 'Suresh P.', createdAt: new Date('2026-03-05'), description: 'Park benches are broken and unsafe.', updates: [] },
-  { id: 'N007', title: 'Noise from construction at night', category: 'noise', priority: 'medium', status: 'pending', citizenName: 'Kavya D.', createdAt: new Date('2026-04-08'), description: 'Construction work continues after midnight.', updates: [] },
-  { id: 'N008', title: 'Blocked storm drain causing flooding', category: 'water', priority: 'high', status: 'pending', citizenName: 'Arun B.', createdAt: new Date('2026-04-10'), description: 'Storm drain blocked, flooding every rain.', updates: [] },
+  {
+    id: 'N001', title: 'Broken streetlight on MG Road', category: 'infrastructure',
+    priority: 'high', status: 'pending', citizenName: 'Priya S.',
+    createdAt: new Date('2026-03-10'),
+    description: 'Streetlight near the MG Road junction has been broken for over 3 weeks now, causing safety hazards for pedestrians and vehicles after dark. Multiple residents have already complained to the local ward office.',
+    imageUrl: null, pinCode: '400001',
+  },
+  {
+    id: 'N002', title: 'Overflowing garbage bin near park', category: 'sanitation',
+    priority: 'critical', status: 'in_progress', citizenName: 'Rahul M.',
+    createdAt: new Date('2026-03-15'),
+    description: 'The municipal garbage bin near Shivaji Park has been overflowing for the past week. The waste spills onto the pavement creating an unhygienic environment and a foul smell.',
+    imageUrl: null, pinCode: '400028',
+  },
+  {
+    id: 'N003', title: 'Pothole on main road causes accidents', category: 'roads',
+    priority: 'high', status: 'resolved', citizenName: 'Anjali K.',
+    createdAt: new Date('2026-02-28'),
+    description: 'A large pothole on the main road near the central market has already caused 2 bike accidents. Despite multiple complaints to the PWD department, the pothole remains unfilled.',
+    imageUrl: null, pinCode: '400001',
+  },
+  {
+    id: 'N004', title: 'Water pipeline burst causing wastage', category: 'water',
+    priority: 'critical', status: 'in_progress', citizenName: 'Vikram T.',
+    createdAt: new Date('2026-03-20'),
+    description: 'A water pipeline burst on Linking Road has been causing massive water wastage for 5 consecutive days. Gallons of water are lost daily while the surrounding area faces supply shortages.',
+    imageUrl: null, pinCode: '400050',
+  },
+  {
+    id: 'N005', title: 'No dustbin near bus stop', category: 'sanitation',
+    priority: 'medium', status: 'pending', citizenName: 'Meena R.',
+    createdAt: new Date('2026-04-01'),
+    description: 'The bus stop on Station Road has no dustbin within 50 metres, leading to widespread littering. Commuters leave waste on the footpath as there is no designated disposal spot.',
+    imageUrl: null, pinCode: '400012',
+  },
+  {
+    id: 'N006', title: 'Park benches damaged and unsafe', category: 'infrastructure',
+    priority: 'low', status: 'resolved', citizenName: 'Suresh P.',
+    createdAt: new Date('2026-03-05'),
+    description: 'Several benches in the municipal park are broken with exposed metal edges posing injury risks to children and elderly visitors. Maintenance has not been done for over a year.',
+    imageUrl: null, pinCode: '400016',
+  },
+  {
+    id: 'N007', title: 'Construction noise past midnight', category: 'noise',
+    priority: 'medium', status: 'pending', citizenName: 'Kavya D.',
+    createdAt: new Date('2026-04-08'),
+    description: 'Construction work at the new building on Turner Road continues past midnight every night, violating municipal noise bylaws. Residents in 4 adjoining buildings are unable to sleep.',
+    imageUrl: null, pinCode: '400036',
+  },
+  {
+    id: 'N008', title: 'Blocked storm drain causes flooding', category: 'water',
+    priority: 'high', status: 'pending', citizenName: 'Arun B.',
+    createdAt: new Date('2026-04-10'),
+    description: 'The storm drain at the junction of SV Road and Hill Road is completely blocked with debris, causing street flooding every time it rains, making the road impassable for vehicles.',
+    imageUrl: null, pinCode: '400064',
+  },
+  {
+    id: 'N009', title: 'Stray dogs near school gates', category: 'animals',
+    priority: 'high', status: 'pending', citizenName: 'Pooja N.',
+    createdAt: new Date('2026-04-12'),
+    description: 'A pack of stray dogs has been aggressive near the school gate on Peddar Road. Three children have been chased and one was bitten last week. Parents are afraid to drop children to school.',
+    imageUrl: null, pinCode: '400026',
+  },
+  {
+    id: 'N010', title: 'Illegal hawkers blocking footpath', category: 'roads',
+    priority: 'medium', status: 'in_progress', citizenName: 'Sanjay V.',
+    createdAt: new Date('2026-04-05'),
+    description: 'Unauthorised hawkers have set up permanent stalls on the footpath of FC Road, completely blocking pedestrian movement and forcing pedestrians onto the road, risking accidents.',
+    imageUrl: null, pinCode: '400007',
+  },
+  {
+    id: 'N011', title: 'Sewage overflow on residential lane', category: 'sanitation',
+    priority: 'critical', status: 'pending', citizenName: 'Rekha G.',
+    createdAt: new Date('2026-04-14'),
+    description: 'Raw sewage has been overflowing into the residential lane behind Parel station for 3 days. The stench is unbearable and residents fear disease outbreak in the densely populated area.',
+    imageUrl: null, pinCode: '400012',
+  },
+  {
+    id: 'N012', title: 'Street signage missing on major junction', category: 'infrastructure',
+    priority: 'medium', status: 'resolved', citizenName: 'Dilip M.',
+    createdAt: new Date('2026-03-28'),
+    description: 'Traffic direction signs at the Goregaon link road junction have been missing for 2 months, causing frequent wrong-way driving incidents and traffic confusion during peak hours.',
+    imageUrl: null, pinCode: '400063',
+  },
 ]
 
-const STATUS_CONFIG = {
-  resolved:    { color: '#10b981', label: 'Resolved',    icon: CheckCircle },
-  in_progress: { color: '#3b82f6', label: 'In Progress', icon: Clock },
-  pending:     { color: '#f59e0b', label: 'Pending',     icon: AlertTriangle },
-}
+const STATUS_LABEL = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Resolved' }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
-}
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.45 } },
-}
-
-// ─── Category accordion row ─────────────────────────────────────────────────
-function CategoryAccordion({ category, complaints }) {
-  const [open, setOpen] = useState(false)
-  const resolved = complaints.filter(c => c.status === 'resolved').length
-  const total = complaints.length
-
-  return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-5 py-4 bg-white/70 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-        onClick={() => setOpen(v => !v)}
-      >
-        <div className="flex items-center gap-3">
-          {open ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
-          <span className="font-semibold text-slate-900 dark:text-slate-100 capitalize">{category}</span>
-          <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:text-blue-300">
-            {total}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{resolved} resolved</span>
-          <span>·</span>
-          <span>{total - resolved} open</span>
-        </div>
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="overflow-hidden"
-          >
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-950/40">
-              {complaints.map((c) => {
-                const cfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.pending
-                const Icon = cfg.icon
-                return (
-                  <div key={c.id} className="px-6 py-4 flex items-start gap-4">
-                    <Icon className="h-4 w-4 mt-1 flex-shrink-0" style={{ color: cfg.color }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">{c.title}</p>
-                        <span className="text-xs rounded-full px-2 py-0.5 font-semibold text-white" style={{ backgroundColor: cfg.color }}>
-                          {cfg.label}
-                        </span>
-                        <span className="text-xs">{getPriorityBadge(c.priority)}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{c.description}</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        Filed by {c.citizenName} · {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-// ─── Main page ───────────────────────────────────────────────────────────────
 export default function NeighborhoodComplaints() {
   const { user } = useUser()
-  const pinCode = user?.pinCode || user?.pin_code || ''
-
-  const [complaints, setComplaints] = useState([])
+  const [complaints, setComplaints] = useState(MOCK_COMPLAINTS)
   const [loading, setLoading] = useState(false)
-  const [usingMock, setUsingMock] = useState(false)
+  const [selectedComplaint, setSelectedComplaint] = useState(null)
+  const [categoryOpen, setCategoryOpen] = useState(false)
+  const [activeCategory, setActiveCategory] = useState('all')
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    const pin = user?.pinCode
+    if (!pin) return
     setLoading(true)
-    try {
-      const res = await apiGetNeighborhoodComplaints(pinCode)
-      if (res.success && res.data.length > 0) {
-        setComplaints(res.data)
-        setUsingMock(false)
-      } else {
-        // Backend not ready or no data — use mock so UI is visible
-        setComplaints(MOCK_COMPLAINTS)
-        setUsingMock(true)
-      }
-    } catch {
-      setComplaints(MOCK_COMPLAINTS)
-      setUsingMock(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [pinCode])
+    apiGetNeighborhoodComplaints(pin)
+      .then(data => { if (data?.length) setComplaints(data) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [user?.pinCode])
 
-  useEffect(() => { load() }, [load])
-
-  // ── Derived stats ──────────────────────────────────────────────────────
-  const total      = complaints.length
-  const resolved   = complaints.filter(c => c.status === 'resolved').length
-  const inProgress = complaints.filter(c => c.status === 'in_progress').length
-  const pending    = complaints.filter(c => c.status === 'pending').length
-
-  const byCategory = complaints.reduce((acc, c) => {
-    acc[c.category] = acc[c.category] || []
-    acc[c.category].push(c)
-    return acc
-  }, {})
-
-  const categoryEntries = Object.entries(byCategory).sort(([, a], [, b]) => b.length - a.length)
-
-  // Month-wise timeline (last 6 months) for line chart
-  const monthMap = {}
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date()
-    d.setMonth(d.getMonth() - i)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    monthMap[key] = 0
-  }
-  complaints.forEach(c => {
-    if (!c.createdAt) return
-    const d = new Date(c.createdAt)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    if (key in monthMap) monthMap[key]++
-  })
-  const timelinePoints = Object.entries(monthMap).map(([k, v]) => ({
-    label: k.slice(5), // MM
-    value: v,
-  }))
-
-  const statCards = [
-    { label: 'Total',       value: total,      color: 'from-blue-500 to-cyan-500',    icon: Users },
-    { label: 'Resolved',    value: resolved,   color: 'from-emerald-500 to-teal-500', icon: CheckCircle },
-    { label: 'In Progress', value: inProgress, color: 'from-indigo-500 to-blue-500',  icon: Clock },
-    { label: 'Pending',     value: pending,    color: 'from-amber-500 to-orange-500', icon: AlertTriangle },
-  ]
+  const categories = ['all', ...Array.from(new Set(complaints.map(c => c.category))).sort()]
+  const filtered = activeCategory === 'all' ? complaints : complaints.filter(c => c.category === activeCategory)
 
   return (
     <PageLayout>
-      <div className="min-h-[calc(100vh-80px)] px-4 py-8">
-        <motion.div
-          className="max-w-6xl mx-auto"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+      <div className="min-h-screen w-full px-6 py-5">
+
+        {/* Page header */}
+        <div className="mb-5">
+          <h1 className="text-2xl font-bold text-white">Neighborhood Complaints</h1>
+          <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5" />
+            {user?.pinCode ? `PIN ${user.pinCode}` : 'Nearby area'}
+            <span className="text-zinc-700">·</span>
+            {complaints.length} complaints total
+          </p>
+        </div>
+
+        {/* ── Category-wise breakdown dropdown ─────────────────────────── */}
+        <div
+          style={{ borderRadius: '0.4rem' }}
+          className="mb-6 border border-zinc-700/60 bg-zinc-900/70 overflow-hidden"
         >
-          <CitizenNav />
-
-          {/* Header */}
-          <motion.div variants={itemVariants} className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 px-3 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">
-                <MapPin className="h-3.5 w-3.5" />
-                {pinCode ? `Pin Code: ${pinCode}` : 'All Neighborhoods'}
-                {usingMock && <span className="ml-1 text-amber-500">(preview data)</span>}
-              </div>
-              <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">Neighborhood Complaints</h1>
-              <p className="text-slate-500 dark:text-slate-400 mt-1">
-                Public grievances filed in your area — real-time visibility for citizens.
-              </p>
-            </div>
-            <button
-              onClick={load}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </motion.div>
-
-          {/* Stat cards */}
-          <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {statCards.map(({ label, value, color, icon: Icon }) => (
-              <Card key={label} className={`p-5 bg-gradient-to-br ${color} border-0`}>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">{label}</p>
-                    <p className="text-4xl font-bold text-white mt-1">{value}</p>
-                  </div>
-                  <Icon className="h-10 w-10 text-white/20" />
-                </div>
-              </Card>
-            ))}
-          </motion.div>
-
-          {/* Charts row */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Status Pie */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <PieChartIcon className="h-5 w-5 text-blue-500" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Status Distribution</h3>
-              </div>
-              <div className="flex justify-center mb-4">
-                <PieChartComponent
-                  data={[
-                    { label: 'Resolved',    value: resolved,   color: '#10b981' },
-                    { label: 'In Progress', value: inProgress, color: '#3b82f6' },
-                    { label: 'Pending',     value: pending,    color: '#f59e0b' },
-                  ]}
-                  size={130}
-                />
-              </div>
-              <div className="space-y-1.5 text-xs">
-                {[
-                  { label: 'Resolved',    color: '#10b981', count: resolved },
-                  { label: 'In Progress', color: '#3b82f6', count: inProgress },
-                  { label: 'Pending',     color: '#f59e0b', count: pending },
-                ].map(({ label, color, count }) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                      {label}
-                    </span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Priority Bar */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="h-5 w-5 text-purple-500" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Priority Breakdown</h3>
-              </div>
-              <div className="flex justify-center">
-                <BarChart
-                  data={['critical', 'high', 'medium', 'low'].map(p => ({
-                    label: p.slice(0, 3).toUpperCase(),
-                    value: complaints.filter(c => c.priority === p).length,
-                    color: getPriorityColor(p),
-                  }))}
-                  width={260}
-                  height={160}
-                />
-              </div>
-            </Card>
-
-            {/* Category Bar */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="h-5 w-5 text-indigo-500" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Top Categories</h3>
-              </div>
-              <div className="flex justify-center">
-                <BarChart
-                  data={categoryEntries.slice(0, 5).map(([cat, items]) => ({
-                    label: cat.slice(0, 4).toUpperCase(),
-                    value: items.length,
-                    color: '#6366f1',
-                  }))}
-                  width={260}
-                  height={160}
-                />
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Timeline line chart */}
-          <motion.div variants={itemVariants} className="mb-8">
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="h-5 w-5 text-cyan-500" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Complaints Over Last 6 Months</h3>
-              </div>
-              <LineChart
-                points={timelinePoints}
-                width={Math.min(900, typeof window !== 'undefined' ? window.innerWidth - 80 : 800)}
-                height={140}
-                stroke="#06b6d4"
-              />
-              <div className="flex justify-between mt-1 px-3 text-xs text-slate-400 dark:text-slate-500">
-                {timelinePoints.map(p => (
-                  <span key={p.label}>Month {p.label}</span>
-                ))}
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Category-wise complaints accordion */}
-          <motion.div variants={itemVariants}>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Category-wise Breakdown</h2>
-              <span className="text-xs text-slate-400 dark:text-slate-500">— click to expand</span>
-            </div>
-            <div className="space-y-3">
-              {categoryEntries.length === 0 ? (
-                <Card className="p-10 text-center text-slate-400 dark:text-slate-500">No complaints found.</Card>
-              ) : (
-                categoryEntries.map(([cat, items]) => (
-                  <CategoryAccordion key={cat} category={cat} complaints={items} />
-                ))
+          <button
+            onClick={() => setCategoryOpen(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-zinc-800/50 transition-colors duration-150"
+          >
+            <span className="text-sm font-semibold text-zinc-200">
+              Category-wise breakdown
+              {activeCategory !== 'all' && (
+                <span className="ml-2 text-xs text-zinc-400 font-normal">— {activeCategory}</span>
               )}
-            </div>
-          </motion.div>
-        </motion.div>
+            </span>
+            {categoryOpen
+              ? <ChevronUp className="h-4 w-4 text-zinc-500" />
+              : <ChevronDown className="h-4 w-4 text-zinc-500" />}
+          </button>
+
+          <AnimatePresence>
+            {categoryOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden border-t border-zinc-800"
+              >
+                <div className="p-4 flex flex-wrap gap-2">
+                  {categories.map(cat => {
+                    const count = cat === 'all'
+                      ? complaints.length
+                      : complaints.filter(c => c.category === cat).length
+                    const isActive = activeCategory === cat
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => { setActiveCategory(cat); setCategoryOpen(false) }}
+                        style={{ borderRadius: '0.4rem' }}
+                        className={`px-3 py-1.5 text-xs font-medium transition-all duration-150 border capitalize ${
+                          isActive
+                            ? 'bg-zinc-700 text-white border-zinc-500'
+                            : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50 hover:bg-zinc-700/60 hover:text-zinc-200'
+                        }`}
+                      >
+                        {cat} <span className="ml-1 opacity-60">{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Active filter badge */}
+        {activeCategory !== 'all' && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-zinc-500">Showing:</span>
+            <span
+              style={{ borderRadius: '0.4rem' }}
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs capitalize"
+            >
+              {activeCategory}
+              <button
+                onClick={() => setActiveCategory('all')}
+                className="text-zinc-500 hover:text-white ml-1 leading-none"
+              >✕</button>
+            </span>
+          </div>
+        )}
+
+        {/* ── Complaints grid — 3 columns ──────────────────────────────── */}
+        {loading && (
+          <div className="flex justify-center py-16">
+            <div className="h-8 w-8 border-2 border-zinc-600 border-t-zinc-200 rounded-full animate-spin" />
+          </div>
+        )}
+
+        {!loading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((c, i) => (
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+              >
+                <Card className="flex flex-col h-64 overflow-hidden hover:border-zinc-500/70 hover:bg-zinc-800/70 transition-all duration-150">
+                  {/* Image area */}
+                  <div
+                    className="flex-shrink-0 h-24 bg-zinc-800 flex items-center justify-center border-b border-zinc-700/50 overflow-hidden relative"
+                  >
+                    {c.imageUrl ? (
+                      <img src={c.imageUrl} alt={c.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-zinc-600">
+                        <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 4h.01M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                        </svg>
+                        <span className="text-[10px]">No image</span>
+                      </div>
+                    )}
+                    <span
+                      style={{ borderRadius: '0.4rem' }}
+                      className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 bg-black/60 text-zinc-300 capitalize"
+                    >{c.category}</span>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex flex-col flex-1 p-4 min-h-0">
+                    <p className="text-sm font-semibold text-white leading-tight line-clamp-2 mb-1">{c.title}</p>
+                    <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2 flex-1 mb-3">{c.description}</p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-600">
+                        <span>{getPriorityBadge(c.priority)}</span>
+                        <span className="capitalize">{STATUS_LABEL[c.status]}</span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedComplaint(c)}
+                        style={{ borderRadius: '0.4rem' }}
+                        className="text-xs px-3 py-1 bg-zinc-800 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors duration-150"
+                      >
+                        Learn more
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+
+            {filtered.length === 0 && (
+              <div className="col-span-3 py-20 text-center text-zinc-500 text-sm">
+                No complaints found in this category.
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ── Learn More Modal ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedComplaint && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedComplaint(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={e => e.stopPropagation()}
+              style={{ borderRadius: '0.4rem' }}
+              className="w-full max-w-xl max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
+            >
+              {/* Image */}
+              {selectedComplaint.imageUrl ? (
+                <div className="h-48 flex-shrink-0 overflow-hidden border-b border-zinc-800">
+                  <img src={selectedComplaint.imageUrl} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="h-32 flex-shrink-0 bg-zinc-800 flex items-center justify-center border-b border-zinc-800 text-zinc-600">
+                  <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 4h.01M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                  </svg>
+                </div>
+              )}
+
+              {/* Header */}
+              <div className="flex items-start justify-between p-5 border-b border-zinc-800 flex-shrink-0">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1 capitalize">{selectedComplaint.category}</p>
+                  <h2 className="text-base font-bold text-white leading-tight">{selectedComplaint.title}</h2>
+                </div>
+                <button
+                  onClick={() => setSelectedComplaint(null)}
+                  className="text-zinc-500 hover:text-white text-lg leading-none ml-4 flex-shrink-0"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="overflow-y-auto p-5 space-y-4">
+                <p className="text-sm text-zinc-400 leading-relaxed">{selectedComplaint.description}</p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Status',   val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
+                    { label: 'Priority', val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
+                    { label: 'Filed by', val: selectedComplaint.citizenName || '—' },
+                    { label: 'Date',     val: selectedComplaint.createdAt ? new Date(selectedComplaint.createdAt).toLocaleDateString() : '—' },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">{label}</p>
+                      <p className="text-sm font-semibold text-zinc-200">{val}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <Button variant="secondary" onClick={() => setSelectedComplaint(null)} className="w-full">
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageLayout>
   )
 }

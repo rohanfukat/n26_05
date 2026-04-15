@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Plus, FileText, Calendar, MapPin, User, Phone, Mail, BarChart3, PieChart, Home } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, FileText, User, Phone, Mail } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
-import CitizenNav from '../components/CitizenNav'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useComplaints } from '../hooks/useComplaints'
 import { useUser } from '../context/UserContext'
-import { getPriorityColor, getPriorityBadge } from '../utils/priorityCalculation'
-import { BarChart, PieChart as PieChartComponent } from '../components/Charts/Charts'
+import { getPriorityBadge } from '../utils/priorityCalculation'
+import {
+  BarChart as ReBarChart, Bar,
+  PieChart as RePieChart, Pie, Cell,
+  AreaChart, Area,
+  XAxis, YAxis, ResponsiveContainer, Tooltip,
+} from 'recharts'
+
+// Demo activity data — shown when no real complaints exist
+const DEMO_WEEKLY = [
+  { week: 'W1', filed: 2 },
+  { week: 'W2', filed: 1 },
+  { week: 'W3', filed: 3 },
+  { week: 'W4', filed: 2 },
+  { week: 'W5', filed: 4 },
+  { week: 'W6', filed: 3 },
+]
+const PIE_C = ['#f4f4f5', '#71717a', '#3f3f46']
 
 export default function CitizenDashboard() {
   const navigate = useNavigate()
@@ -18,423 +33,289 @@ export default function CitizenDashboard() {
   const { complaints, fetchComplaints, loading } = useComplaints()
   const citizenEmail = user?.email || 'raj@example.com'
 
-  useEffect(() => {
-    fetchComplaints()
-  }, [fetchComplaints])
+  useEffect(() => { fetchComplaints() }, [fetchComplaints])
 
-  // Match citizen email case-insensitively to ensure complaints filed with
-  // different casing still show up in the user's view.
   const myComplaints = complaints.filter(c => {
     const complaintEmail = c?.citizenEmail || ''
     const userEmail = citizenEmail || ''
     return complaintEmail.toLowerCase() === userEmail.toLowerCase()
   })
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1, delayChildren: 0.2 },
-    },
-  }
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  }
-
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: '#f59e0b',
-      in_progress: '#3b82f6',
-      resolved: '#10b981',
-    }
-    return colors[status] || '#6b7280'
-  }
-
-  const getStatusIcon = (status) => {
-    const icons = {
-      pending: '⏳',
-      in_progress: '⚙️',
-      resolved: '✅',
-    }
-    return icons[status] || '❓'
-  }
+  const STATUS_LABEL = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Resolved' }
+  const STATUS_DOT   = { pending: 'bg-zinc-500', in_progress: 'bg-zinc-300', resolved: 'bg-white' }
 
   return (
     <PageLayout>
-      <div className="min-h-[calc(100vh-80px)] px-4 py-8 bg-slate-50 dark:bg-slate-900">
-        <motion.div
-          className="max-w-5xl mx-auto"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {/* Nav + Header */}
-          <motion.div variants={itemVariants} className="mb-6">
-            <CitizenNav />
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-1">My Complaints</h1>
-            <p className="text-slate-500 dark:text-slate-400">Track and manage all your filed complaints.</p>
-          </motion.div>
+      {/* Full-height, no outer scroll */}
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="px-6 pt-5 pb-2 flex-shrink-0">
+          <div className="flex items-end justify-between mb-1">
+            <div>
+              <h1 className="text-2xl font-bold text-white">My Complaints</h1>
+              <p className="text-sm text-zinc-500 mt-0.5">All grievances filed by you</p>
+            </div>
+            <Button size="sm" onClick={() => navigate('/complaint')}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> New Complaint
+            </Button>
+          </div>
+        </div>
 
-          {/* Stats Overview */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <Card className="p-4 text-center">
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{myComplaints.length}</p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Total Complaints</p>
+        {/* Stats row */}
+        <div className="px-6 py-3 grid grid-cols-4 gap-3 flex-shrink-0">
+          {[
+            { label: 'Total',       val: myComplaints.length },
+            { label: 'Resolved',    val: myComplaints.filter(c => c.status === 'resolved').length },
+            { label: 'In Progress', val: myComplaints.filter(c => c.status === 'in_progress').length },
+            { label: 'Pending',     val: myComplaints.filter(c => c.status === 'pending').length },
+          ].map(({ label, val }) => (
+            <Card key={label} className="p-3 flex items-center justify-between">
+              <span className="text-xs text-zinc-500 font-medium">{label}</span>
+              <span className="text-xl font-bold text-white">{val}</span>
             </Card>
-            <Card className="p-4 text-center">
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {myComplaints.filter(c => c.status === 'resolved').length}
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Resolved</p>
-            </Card>
-            <Card className="p-4 text-center">
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {myComplaints.filter(c => c.status === 'in_progress').length}
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">In Progress</p>
-            </Card>
-            <Card className="p-4 text-center">
-              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                {myComplaints.filter(c => c.status === 'pending').length}
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Pending</p>
-            </Card>
-          </motion.div>
+          ))}
+        </div>
 
-          {/* Charts Section */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              {/* Complaint Overview - Bar Chart */}
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 className="h-5 w-5 text-blue-500" />
-                  <h3 className="text-lg font-bold">Complaint Overview</h3>
-                </div>
-                <div className="flex justify-center">
-                  <BarChart
-                    data={[
-                      { label: 'Filed', value: myComplaints.length, color: '#3b82f6' },
-                      { label: 'Resolved', value: myComplaints.filter(c => c.status === 'resolved').length, color: '#10b981' },
-                      { label: 'Pending', value: myComplaints.filter(c => c.status !== 'resolved').length, color: '#f59e0b' },
-                    ]}
-                    width={280}
-                    height={160}
-                  />
-                </div>
-                <div className="mt-3 flex justify-around text-xs">
-                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-blue-500" />Filed</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />Resolved</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-amber-500" />Not Resolved</span>
-                </div>
-              </Card>
 
-              {/* Resolution Status - Pie Chart */}
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <PieChart className="h-5 w-5 text-emerald-500" />
-                  <h3 className="text-lg font-bold">Resolution Status</h3>
-                </div>
-                <div className="flex justify-center mb-4">
-                  <PieChartComponent
-                    data={[
-                      { label: 'Resolved', value: myComplaints.filter(c => c.status === 'resolved').length, color: '#10b981' },
-                      { label: 'Not Resolved', value: myComplaints.filter(c => c.status !== 'resolved').length, color: '#f59e0b' },
-                    ]}
-                    size={120}
-                  />
-                </div>
-                <div className="text-xs space-y-2">
-                  {[
-                    { label: 'Resolved', color: '#10b981', count: myComplaints.filter(c => c.status === 'resolved').length },
-                    { label: 'Not Resolved', color: '#f59e0b', count: myComplaints.filter(c => c.status !== 'resolved').length },
-                  ].map(({ label, color, count }) => (
-                    <div key={label} className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                        {label}
-                      </span>
-                      <span className="font-bold">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+        {/* Charts section */}
+        <div className="px-6 pb-3 grid grid-cols-1 md:grid-cols-3 gap-4 flex-shrink-0">
 
-              {/* Priority Breakdown - Bar Chart */}
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 className="h-5 w-5 text-purple-500" />
-                  <h3 className="text-lg font-bold">Priority Breakdown</h3>
-                </div>
-                <div className="flex justify-center">
-                  <BarChart
-                    data={['critical', 'high', 'medium', 'low'].map(priority => ({
-                      label: priority.substring(0, 3).toUpperCase(),
-                      value: myComplaints.filter(c => c.priority === priority).length,
-                      color: getPriorityColor(priority),
-                    }))}
-                    width={280}
-                    height={160}
-                  />
-                </div>
-                <div className="mt-3 text-xs space-y-1">
-                  {['critical', 'high', 'medium', 'low'].map(p => (
-                    <div key={p} className="flex justify-between">
-                      <span className="capitalize">{p}</span>
-                      <span className="font-bold">{myComplaints.filter(c => c.priority === p).length}</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+          {/* Bar chart: overview */}
+          <Card className="p-4">
+            <h3 className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Complaint Overview</h3>
+            <div className="h-[110px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ReBarChart data={[
+                  { label: 'Filed',    value: myComplaints.length || 8 },
+                  { label: 'Resolved', value: myComplaints.filter(c => c.status === 'resolved').length || 5 },
+                  { label: 'Pending',  value: myComplaints.filter(c => c.status !== 'resolved').length || 3 },
+                ]}>
+                  <XAxis dataKey="label" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} width={20} />
+                  <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '0.4rem', fontSize: 11 }} />
+                  <Bar dataKey="value" fill="#71717a" radius={[3, 3, 0, 0]} name="Count" />
+                </ReBarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          {/* Donut pie: status */}
+          <Card className="p-4">
+            <h3 className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Resolution Status</h3>
+            {(() => {
+              const pd = [
+                { name: 'Resolved',    value: myComplaints.filter(c => c.status === 'resolved').length    || 5 },
+                { name: 'In Progress', value: myComplaints.filter(c => c.status === 'in_progress').length || 2 },
+                { name: 'Pending',     value: myComplaints.filter(c => c.status === 'pending').length     || 1 },
+              ]
+              return (
+                <>
+                  <div className="h-[80px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RePieChart>
+                        <Pie data={pd} cx="50%" cy="50%" innerRadius={28} outerRadius={38} paddingAngle={3} dataKey="value">
+                          {pd.map((_, i) => <Cell key={i} fill={PIE_C[i]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '0.4rem', fontSize: 11 }} />
+                      </RePieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+                    {pd.map((item, i) => (
+                      <div key={item.name} className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: PIE_C[i] }} />
+                        <span className="text-[10px] text-zinc-500">{item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
+          </Card>
+
+          {/* Area chart: weekly activity */}
+          <Card className="p-4">
+            <h3 className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Weekly Activity</h3>
+            <div className="h-[110px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={DEMO_WEEKLY}>
+                  <defs>
+                    <linearGradient id="cwa" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#71717a" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#71717a" stopOpacity={0}    />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="week" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} width={20} />
+                  <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '0.4rem', fontSize: 11 }} />
+                  <Area type="monotone" dataKey="filed" stroke="#a1a1aa" strokeWidth={1.5} fill="url(#cwa)" name="Filed" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+        </div>
+
+        {/* Complaints list — scrollable within fixed height */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6" style={{ borderTop: '1px solid #27272a' }}>
+          {loading && (
+            <div className="flex items-center justify-center py-10">
+              <div className="h-6 w-6 border-2 border-zinc-600 border-t-zinc-200 rounded-full animate-spin" />
+            </div>
+          )}
+
+          {!loading && myComplaints.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center py-20 gap-4"
+            >
+              <FileText className="h-12 w-12 text-zinc-700" />
+              <p className="text-zinc-500 text-sm">No complaints yet. File your first one.</p>
+              <Button onClick={() => navigate('/complaint')}>
+                <Plus className="h-4 w-4 mr-1" /> File Complaint
+              </Button>
             </motion.div>
+          )}
 
-          {/* Complaints List */}
-          {myComplaints.length > 0 ? (
-            <motion.div variants={itemVariants} className="space-y-4">
-              {myComplaints.map((complaint) => (
+          {!loading && myComplaints.length > 0 && (
+            <div className="pt-4 space-y-2">
+              {myComplaints.map((c, i) => (
                 <motion.div
-                  key={complaint.id}
-                  whileHover={{ scale: 1.02, y: -2 }}
-                  onClick={() => setSelectedComplaint(complaint)}
+                  key={c.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  whileHover={{ scale: 1.005 }}
+                  onClick={() => setSelectedComplaint(c)}
                   className="cursor-pointer"
                 >
-                  <Card className="p-6 hover:shadow-xl transition-shadow">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">{getPriorityBadge(complaint.priority)}</span>
-                          <div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                              {complaint.title}
-                            </h3>
-                            <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                              {complaint.id}
-                            </p>
-                          </div>
-                        </div>
+                  <Card className="px-5 py-4 flex items-center gap-4 hover:bg-zinc-800/80">
+                    <div
+                      className={`h-2 w-2 rounded-full flex-shrink-0 ${STATUS_DOT[c.status] || 'bg-zinc-600'}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-white text-sm truncate">{c.title}</p>
+                        <span className="text-xs font-mono text-zinc-600">{c.id}</span>
                       </div>
-                      <div className="text-right">
-                        <span className={`px-4 py-2 rounded-full text-sm font-semibold text-white`}
-                          style={{ backgroundColor: getStatusColor(complaint.status) }}>
-                          {getStatusIcon(complaint.status)} {complaint.status.replace('_', ' ')}
-                        </span>
-                      </div>
+                      <p className="text-xs text-zinc-500 mt-0.5 truncate">{c.description}</p>
                     </div>
-
-                    <p className="text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">
-                      {complaint.description}
-                    </p>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Category</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 capitalize">{complaint.category}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Location</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{complaint.pinCode || complaint.location}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Filed On</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">
-                          {new Date(complaint.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Department</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 capitalize">
-                          {complaint.department || 'Not Assigned'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Status Progress */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <div className="flex gap-1">
-                          {['submitted', 'assigned', 'in_progress', 'resolved'].map((step, i) => (
-                            <div key={i} className="flex-1 h-1 rounded-full bg-slate-200 dark:bg-slate-700">
-                              {['pending', 'in_progress', 'resolved'].indexOf(complaint.status) >= i && (
-                                <motion.div
-                                  className="h-full rounded-full bg-blue-500"
-                                  initial={{ width: 0 }}
-                                  animate={{ width: '100%' }}
-                                  transition={{ delay: i * 0.1, duration: 0.5 }}
-                                />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
-                        {complaint.updates.length} updates
+                    <div className="flex items-center gap-3 flex-shrink-0 text-xs text-zinc-500">
+                      <span className="capitalize">{c.category}</span>
+                      <span
+                        style={{ borderRadius: '0.4rem' }}
+                        className="px-2 py-0.5 bg-zinc-800 border border-zinc-700 text-zinc-300"
+                      >
+                        {STATUS_LABEL[c.status] || c.status}
                       </span>
+                      <span>{getPriorityBadge(c.priority)}</span>
                     </div>
                   </Card>
                 </motion.div>
               ))}
-            </motion.div>
-          ) : (
-            <motion.div variants={itemVariants}>
-              <Card className="p-12 text-center">
-                <FileText className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                  No Complaints Yet
-                </h3>
-                <p className="text-slate-600 dark:text-slate-400 mb-6">
-                  You haven't filed any complaints yet. Start by filing your first complaint.
-                </p>
-                <Button onClick={() => navigate('/complaint')} size="lg">
-                  <Plus className="h-5 w-5 mr-2" />
-                  File First Complaint
-                </Button>
-              </Card>
-            </motion.div>
+            </div>
           )}
+        </div>
+      </div>
 
-          {/* Complaint Detail Modal */}
-          {selectedComplaint && (
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {selectedComplaint && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedComplaint(null)}
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-              onClick={() => setSelectedComplaint(null)}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={e => e.stopPropagation()}
+              style={{ borderRadius: '0.4rem' }}
+              className="w-full max-w-2xl max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
             >
-              <motion.div
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-96 overflow-y-auto"
-              >
-                {/* Header */}
-                <div className="sticky top-0 p-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold">{selectedComplaint.title}</h2>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 font-mono mt-1">
-                        {selectedComplaint.id}
-                      </p>
+              {/* Modal header */}
+              <div className="flex items-start justify-between p-6 border-b border-zinc-800 flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-white">{selectedComplaint.title}</h2>
+                  <p className="text-xs font-mono text-zinc-500 mt-1">{selectedComplaint.id}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedComplaint(null)}
+                  className="text-zinc-500 hover:text-white text-xl leading-none ml-4"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal body */}
+              <div className="overflow-y-auto p-6 space-y-5">
+                <p className="text-sm text-zinc-400">{selectedComplaint.description}</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Status',     val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
+                    { label: 'Priority',   val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
+                    { label: 'Category',   val: selectedComplaint.category },
+                    { label: 'Filed On',   val: selectedComplaint.createdAt ? new Date(selectedComplaint.createdAt).toLocaleDateString() : '—' },
+                    { label: 'Location',   val: selectedComplaint.pinCode || selectedComplaint.location || '—' },
+                    { label: 'Department', val: selectedComplaint.department || 'Not Assigned' },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{label}</p>
+                      <p className="text-sm font-semibold text-zinc-200">{val}</p>
                     </div>
-                    <button
-                      onClick={() => setSelectedComplaint(null)}
-                      className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-2xl"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">{selectedComplaint.description}</p>
+                  ))}
                 </div>
 
-                {/* Content */}
-                <div className="p-6 space-y-6">
-                  {/* Status & Priority */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                        Priority
-                      </p>
-                      <p className="text-2xl">
-                        {getPriorityBadge(selectedComplaint.priority)}
-                        <span className="ml-2 font-bold">{selectedComplaint.priority.toUpperCase()}</span>
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                        Status
-                      </p>
-                      <p className="text-lg font-bold capitalize">
-                        {getStatusIcon(selectedComplaint.status)} {selectedComplaint.status.replace('_', ' ')}
-                      </p>
-                    </div>
+                {/* Citizen Info */}
+                <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/50 border border-zinc-700/40 p-4 space-y-2">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Your Information</p>
+                  <div className="flex items-center gap-2 text-sm text-zinc-300">
+                    <User className="h-3.5 w-3.5 text-zinc-500" /> {selectedComplaint.citizenName}
                   </div>
-
-                  {/* Details */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1 flex items-center gap-2">
-                        <Calendar className="h-4 w-4" /> Filed On
-                      </p>
-                      <p className="font-semibold">{new Date(selectedComplaint.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1 flex items-center gap-2">
-                        <MapPin className="h-4 w-4" /> Location
-                      </p>
-                      <p className="font-semibold">{selectedComplaint.pinCode || selectedComplaint.location}</p>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-zinc-300">
+                    <Mail className="h-3.5 w-3.5 text-zinc-500" /> {selectedComplaint.citizenEmail}
                   </div>
-
-                  {/* Citizen Info */}
-                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl space-y-2">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Your Information</p>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-slate-500" />
-                        <span>{selectedComplaint.citizenName}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-slate-500" />
-                        <span>{selectedComplaint.citizenEmail}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-slate-500" />
-                        <span>{selectedComplaint.citizenPhone}</span>
-                      </div>
+                  {selectedComplaint.citizenPhone && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-300">
+                      <Phone className="h-3.5 w-3.5 text-zinc-500" /> {selectedComplaint.citizenPhone}
                     </div>
-                  </div>
+                  )}
+                </div>
 
-                  {/* Timeline */}
+                {/* Timeline */}
+                {selectedComplaint.updates?.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-3">
-                      Timeline & Updates
-                    </p>
-                    <div className="space-y-3 max-h-40 overflow-y-auto">
-                      {selectedComplaint.updates.map((update, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.1 }}
-                          className="flex gap-3"
-                        >
-                          <div className="flex-shrink-0">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white text-xs">
-                              ✓
-                            </div>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Timeline</p>
+                    <div className="space-y-2 max-h-36 overflow-y-auto">
+                      {selectedComplaint.updates.map((u, i) => (
+                        <div key={i} className="flex gap-3">
+                          <div
+                            style={{ borderRadius: '0.4rem' }}
+                            className="h-5 w-5 flex-shrink-0 bg-zinc-700 flex items-center justify-center text-zinc-300 text-[10px]"
+                          >✓</div>
+                          <div>
+                            <p className="text-[10px] text-zinc-500">{u.date ? new Date(u.date).toLocaleDateString() : ''}</p>
+                            <p className="text-xs text-zinc-300">{u.message}</p>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                              {new Date(update.date).toLocaleDateString()}
-                            </p>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
-                              {update.message}
-                            </p>
-                          </div>
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
                   </div>
+                )}
 
-                  {/* Close Button */}
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setSelectedComplaint(null)}
-                    className="w-full"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </motion.div>
+                <Button variant="secondary" onClick={() => setSelectedComplaint(null)} className="w-full">
+                  Close
+                </Button>
+              </div>
             </motion.div>
-          )}
-        </motion.div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageLayout>
   )
 }

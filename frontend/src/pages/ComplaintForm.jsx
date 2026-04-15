@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Check, Trash2 } from 'lucide-react'
 
 import PageLayout from '../components/PageLayout'
-import CitizenNav from '../components/CitizenNav'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
@@ -143,7 +142,6 @@ export default function ComplaintForm() {
     <PageLayout>
       <div className="min-h-screen flex flex-col items-center px-4 py-10">
         <div className="w-full max-w-2xl">
-          <CitizenNav />
 
           {!isSuccess ? (
             <Card className="p-8">

@@ -13,6 +13,7 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: dark;
 }
 
 body {
@@ -21,27 +22,13 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg);
-  color: var(--text);
-  transition: background-color 0.35s ease, color 0.35s ease;
-}
-
-body.dark {
-  color-scheme: dark;
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle at top left, rgba(14, 165, 233, 0.1), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.08), transparent 20%);
+  background-color: #080808;
+  color: #f0f0f0;
 }
 
 ::selection {
-  background: rgba(14, 165, 233, 0.18);
-  color: inherit;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
 }
 
 button,

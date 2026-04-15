@@ -9,7 +9,39 @@ import AdminMumbaiMap from '../components/AdminMumbaiMap'
 import { useComplaints } from '../hooks/useComplaints'
 import { useDashboard } from '../hooks/useDashboard'
 import { getPriorityColor, getPriorityBadge } from '../utils/priorityCalculation'
-import { BarChart, PieChart as PieChartComponent, LineChart } from '../components/Charts/Charts'
+import {
+  AreaChart, Area,
+  BarChart as ReBarChart, Bar,
+  XAxis, YAxis, ResponsiveContainer,
+  PieChart as RePieChart, Pie, Cell,
+  Tooltip,
+} from 'recharts'
+
+// ── Dummy / demo data (replace with live API when ready) ──────────────────────
+const MONTHLY_DATA = [
+  { month: 'Jan', complaints: 240, resolved: 200 },
+  { month: 'Feb', complaints: 180, resolved: 155 },
+  { month: 'Mar', complaints: 320, resolved: 290 },
+  { month: 'Apr', complaints: 410, resolved: 380 },
+  { month: 'May', complaints: 350, resolved: 310 },
+  { month: 'Jun', complaints: 280, resolved: 260 },
+  { month: 'Jul', complaints: 390, resolved: 355 },
+  { month: 'Aug', complaints: 460, resolved: 425 },
+  { month: 'Sep', complaints: 310, resolved: 290 },
+  { month: 'Oct', complaints: 420, resolved: 385 },
+  { month: 'Nov', complaints: 370, resolved: 340 },
+  { month: 'Dec', complaints: 290, resolved: 270 },
+]
+
+const CATEGORY_DATA = [
+  { category: 'Roads',      count: 1240 },
+  { category: 'Water',      count: 980  },
+  { category: 'Sanitation', count: 870  },
+  { category: 'Power',      count: 640  },
+  { category: 'Parks',      count: 420  },
+]
+
+const PIE_COLORS = ['#f4f4f5', '#71717a', '#3f3f46']
 
 export default function AdminDashboard() {
   const { complaints, fetchComplaints, updateComplaint } = useComplaints()
@@ -38,34 +70,10 @@ export default function AdminDashboard() {
   })
 
   const statCards = [
-    {
-      title: 'Total Complaints',
-      value: stats?.totalComplaints || 0,
-      icon: Users,
-      color: 'from-blue-500 to-cyan-500',
-      trend: '+12%',
-    },
-    {
-      title: 'Critical Priority',
-      value: stats?.criticalComplaints || 0,
-      icon: AlertTriangle,
-      color: 'from-red-500 to-orange-500',
-      trend: '-5%',
-    },
-    {
-      title: 'Resolved',
-      value: stats?.resolvedComplaints || 0,
-      icon: TrendingUp,
-      color: 'from-emerald-500 to-teal-500',
-      trend: '+18%',
-    },
-    {
-      title: 'In Progress',
-      value: stats?.inProgressComplaints || 0,
-      icon: Clock,
-      color: 'from-amber-500 to-orange-500',
-      trend: '+8%',
-    },
+    { title: 'Total Complaints', value: stats?.totalComplaints  ?? 1284, icon: Users,         trend: '+12%' },
+    { title: 'Critical Priority', value: stats?.criticalComplaints ?? 47,  icon: AlertTriangle, trend: '-5%'  },
+    { title: 'Resolved',          value: stats?.resolvedComplaints ?? 836, icon: TrendingUp,    trend: '+18%' },
+    { title: 'In Progress',       value: stats?.inProgressComplaints ?? 312, icon: Clock,       trend: '+8%'  },
   ]
 
   const containerVariants = {
@@ -86,8 +94,8 @@ export default function AdminDashboard() {
   }
 
   const statusColor = (status) => {
-    if (status === 'resolved') return 'bg-green-500'
-    if (status === 'in_progress') return 'bg-blue-500'
+    if (status === 'resolved') return 'bg-zinc-400'
+    if (status === 'in_progress') return 'bg-zinc-600'
     return 'bg-yellow-400'
   }
 
@@ -112,19 +120,19 @@ export default function AdminDashboard() {
 
   return (
     <PageLayout>
-      <div className="min-h-[calc(100vh-80px)] px-4 py-8 bg-slate-50 dark:bg-slate-900">
+      <div className="min-h-screen w-full px-6 py-5 bg-[#080808]">
         <motion.div
-          className="max-w-7xl mx-auto"
+          className="w-full"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
           {/* Header */}
-          <motion.div variants={itemVariants} className="mb-8">
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+          <motion.div variants={itemVariants} className="mb-5">
+            <h1 className="text-2xl font-bold text-white mb-1">
               Admin Dashboard
             </h1>
-            <p className="text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-zinc-500">
               Manage and track all citizen complaints in real-time
             </p>
           </motion.div>
@@ -134,65 +142,142 @@ export default function AdminDashboard() {
             <AdminMumbaiMap />
           </motion.div>
 
-          {/* Charts Section */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Status Distribution - Pie Chart */}
-            <Card className="p-6">
-              <h3 className="text-lg font-bold mb-4">Status Distribution</h3>
-              <div className="flex justify-center mb-4">
-                <PieChartComponent
-                  data={['resolved', 'in_progress', 'pending'].map(status => ({
-                    label: status.replace('_', ' '),
-                    value: stats?.byStatus?.[status] || 0,
-                    color: status === 'resolved' ? '#10b981' : status === 'in_progress' ? '#3b82f6' : '#f59e0b',
-                  }))}
-                  size={120}
-                />
-              </div>
-              <div className="text-xs space-y-1">
-                {['resolved', 'in_progress', 'pending'].map(status => (
-                  <div key={status} className="flex justify-between">
-                    <span className="capitalize">{status.replace('_', ' ')}</span>
-                    <span className="font-bold">{stats?.byStatus?.[status] || 0}</span>
+          {/* Charts Section — Recharts with dummy data ───────────────────── */}
+          <motion.div variants={itemVariants} className="mb-8">
+
+            {/* Row 1: Area chart (2/3) + Pie + Quick Stats (1/3) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+              {/* Area chart */}
+              <Card className="lg:col-span-2 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Complaint Volume</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Monthly complaints vs resolutions</p>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    <span className="text-white font-medium">+12.5%</span>
+                    <span>vs last month</span>
+                  </div>
+                </div>
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={MONTHLY_DATA}>
+                      <defs>
+                        <linearGradient id="gcmp" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor="#f4f4f5" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#f4f4f5" stopOpacity={0}    />
+                        </linearGradient>
+                        <linearGradient id="gres" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor="#71717a" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#71717a" stopOpacity={0}   />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="month" stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '0.4rem', fontSize: 12 }}
+                        labelStyle={{ color: '#f4f4f5' }}
+                        itemStyle={{ color: '#a1a1aa' }}
+                      />
+                      <Area type="monotone" dataKey="complaints" stroke="#f4f4f5" strokeWidth={2} fill="url(#gcmp)" name="Complaints" />
+                      <Area type="monotone" dataKey="resolved"   stroke="#71717a" strokeWidth={2} fill="url(#gres)" name="Resolved"   />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center gap-6 mt-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-100" />
+                    <span className="text-xs text-zinc-400">Complaints</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-500" />
+                    <span className="text-xs text-zinc-400">Resolved</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Right column: Pie + Quick stats */}
+              <div className="flex flex-col gap-6">
+                {/* Donut Pie */}
+                <Card className="p-6 flex-1">
+                  <h3 className="text-base font-semibold text-white mb-4">Status Distribution</h3>
+                  {(() => {
+                    const pieData = [
+                      { name: 'Resolved',    value: stats?.byStatus?.resolved    ?? 836  },
+                      { name: 'In Progress', value: stats?.byStatus?.in_progress ?? 312  },
+                      { name: 'Pending',     value: stats?.byStatus?.pending     ?? 136  },
+                    ]
+                    return (
+                      <>
+                        <div className="h-[150px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RePieChart>
+                              <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="value">
+                                {pieData.map((_, idx) => (
+                                  <Cell key={idx} fill={PIE_COLORS[idx]} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '0.4rem', fontSize: 12 }}
+                              />
+                            </RePieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex justify-center gap-4 mt-3">
+                          {pieData.map((item, idx) => (
+                            <div key={item.name} className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[idx] }} />
+                              <span className="text-xs text-zinc-400">{item.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )
+                  })()}
+                </Card>
+
+                {/* Quick Stats */}
+                <Card className="p-6">
+                  <h3 className="text-base font-semibold text-white mb-4">Quick Stats</h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Avg Resolution Time', value: '4.2 days' },
+                      { label: 'Citizen Satisfaction', value: '94%' },
+                      { label: 'Active Cases', value: (stats?.inProgressComplaints ?? 312).toLocaleString() },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between">
+                        <span className="text-xs text-zinc-500">{label}</span>
+                        <span className="text-sm font-semibold text-zinc-200">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            </div>
+
+            {/* Row 2: Horizontal category bar chart */}
+            <Card className="p-6">
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-white">Complaints by Category</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Top 5 categories this year</p>
+              </div>
+              <div className="h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReBarChart data={CATEGORY_DATA} layout="vertical">
+                    <XAxis type="number" stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis type="category" dataKey="category" stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} width={72} />
+                    <Tooltip
+                      contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '0.4rem', fontSize: 12 }}
+                      cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                    />
+                    <Bar dataKey="count" fill="#71717a" radius={[0, 4, 4, 0]} name="Complaints" />
+                  </ReBarChart>
+                </ResponsiveContainer>
               </div>
             </Card>
 
-            {/* Priority Distribution - Bar Chart */}
-            <Card className="p-6">
-              <h3 className="text-lg font-bold mb-4">Priority Distribution</h3>
-              <div className="flex justify-center">
-                <BarChart
-                  data={['critical', 'high', 'medium', 'low'].map(priority => ({
-                    label: priority.substring(0, 3).toUpperCase(),
-                    value: stats?.byPriority?.[priority] || 0,
-                    color: getPriorityColor(priority),
-                  }))}
-                  width={280}
-                  height={160}
-                />
-              </div>
-            </Card>
-
-            {/* Category Distribution - Bar Chart */}
-            <Card className="p-6">
-              <h3 className="text-lg font-bold mb-4">Top Categories</h3>
-              <div className="flex justify-center">
-                <BarChart
-                  data={stats?.byCategory ? Object.entries(stats.byCategory)
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 5)
-                    .map(([category, count]) => ({
-                      label: category.substring(0, 3).toUpperCase(),
-                      value: count,
-                      color: '#8b5cf6',
-                    })) : []}
-                  width={280}
-                  height={160}
-                />
-              </div>
-            </Card>
           </motion.div>
 
           {/* Stats Grid */}
@@ -202,24 +287,15 @@ export default function AdminDashboard() {
               return (
                 <motion.div
                   key={i}
-                  whileHover={{ scale: 1.02, y: -4 }}
-                  className="relative overflow-hidden"
+                  whileHover={{ scale: 1.02, y: -3 }}
                 >
-                  <Card className={`p-6 bg-gradient-to-br ${stat.color}`}>
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white/80 text-sm font-semibold">{stat.title}</h3>
-                        <span className="text-green-400 text-xs font-bold bg-white/20 px-2 py-1 rounded-full">
-                          {stat.trend}
-                        </span>
-                      </div>
-                      <div className="flex items-end justify-between">
-                        <div>
-                          <p className="text-4xl font-bold text-white">{stat.value}</p>
-                        </div>
-                        <Icon className="h-12 w-12 text-white/20" />
-                      </div>
+                  <Card className="p-5 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-zinc-500 font-medium mb-1">{stat.title}</p>
+                      <p className="text-3xl font-bold text-white">{stat.value}</p>
+                      <p className="text-[10px] text-zinc-600 mt-1">{stat.trend}</p>
                     </div>
+                    <Icon className="h-10 w-10 text-zinc-700" />
                   </Card>
                 </motion.div>
               )
@@ -228,45 +304,50 @@ export default function AdminDashboard() {
 
           {/* Complaint review */}
           <motion.div variants={itemVariants} className="space-y-6">
-            <Card className="p-6 rounded-3xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700">
+            <Card className="p-5 bg-zinc-900/70 border border-zinc-700/60">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <h3 className="text-lg font-bold">Complaint review</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Filter solved and unsolved complaints, then review details.</p>
+                  <h3 className="text-base font-bold text-white">Complaint review</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">Filter solved and unsolved complaints, then review details.</p>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2">
                   {['all', 'solved', 'unsolved'].map((filter) => (
                     <button
                       key={filter}
                       type="button"
                       onClick={() => setViewFilter(filter)}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${viewFilter === filter ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'}`}
+                      style={{ borderRadius: '0.4rem' }}
+                      className={`px-4 py-2 text-sm font-semibold transition ${
+                        viewFilter === filter
+                          ? 'bg-zinc-700 text-white border border-zinc-500'
+                          : 'bg-zinc-800/60 text-zinc-400 border border-zinc-700/50 hover:bg-zinc-700/60 hover:text-zinc-200'
+                      }`}
                     >
                       {filter === 'all' ? 'All' : filter === 'solved' ? 'Solved' : 'Unsolved'}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Visible complaints</p>
-                  <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-100">{visibleComplaints.length}</p>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500">Visible complaints</p>
+                  <p className="mt-1.5 text-3xl font-semibold text-white">{visibleComplaints.length}</p>
                 </div>
-                <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Current view</p>
-                  <p className="mt-2 text-lg font-semibold">{viewFilter === 'all' ? 'All complaints' : viewFilter === 'solved' ? 'Solved' : 'Unsolved'}</p>
+                <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500">Current view</p>
+                  <p className="mt-1.5 text-base font-semibold text-zinc-200">{viewFilter === 'all' ? 'All complaints' : viewFilter === 'solved' ? 'Solved' : 'Unsolved'}</p>
                 </div>
-                <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Quick actions</p>
-                  <p className="mt-2 text-lg font-semibold">Review latest issues and update risk.</p>
+                <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500">Quick actions</p>
+                  <p className="mt-1.5 text-sm text-zinc-400">Review latest issues and update risk.</p>
                 </div>
               </div>
             </Card>
 
-            <Card className="p-6 overflow-x-auto rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950">
-              <h3 className="text-lg font-bold mb-4">Complaint log</h3>
+            <Card className="p-5 overflow-x-auto border border-zinc-700/60 bg-zinc-900/70">
+              <h3 className="text-base font-bold text-white mb-4">AI-categorized Complaint Log</h3>
               <table className="w-full text-sm text-left">
-                <thead className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-500 uppercase text-xs tracking-[0.1em]">
+                <thead className="border-b border-zinc-700/60 bg-zinc-800/40 text-zinc-500 uppercase text-xs tracking-widest">
                   <tr>
                     <th className="py-4 px-4">ID</th>
                     <th className="py-4 px-4">Title</th>
@@ -282,21 +363,21 @@ export default function AdminDashboard() {
                   {visibleComplaints.map((complaint) => (
                     <motion.tr
                       key={complaint.id}
-                      className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      className="border-b border-zinc-800/60 hover:bg-zinc-800/50 transition-colors"
                       whileHover={{ backgroundColor: 'rgba(0,0,0,0.03)' }}
                     >
-                      <td className="py-4 px-4 font-mono text-blue-600 dark:text-blue-400">{complaint.id}</td>
-                      <td className="py-4 px-4 max-w-[260px] truncate">{complaint.title}</td>
-                      <td className="py-4 px-4 capitalize">{complaint.category}</td>
-                      <td className="py-4 px-4">{getPriorityBadge(complaint.priority)}</td>
-                      <td className="py-4 px-4">
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white ${statusColor(complaint.status)}`}>
+                      <td className="py-3 px-4 font-mono text-zinc-400 text-xs">{complaint.id}</td>
+                      <td className="py-3 px-4 max-w-[260px] truncate text-zinc-200">{complaint.title}</td>
+                      <td className="py-3 px-4 capitalize text-zinc-400">{complaint.category}</td>
+                      <td className="py-3 px-4">{getPriorityBadge(complaint.priority)}</td>
+                      <td className="py-3 px-4">
+                        <span style={{ borderRadius: '0.4rem' }} className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-zinc-700 text-zinc-200">
                           {complaint.status.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="py-4 px-4">{complaint.assignedTo || '-'}</td>
-                      <td className="py-4 px-4 text-xs text-slate-500 dark:text-slate-400">{new Date(complaint.createdAt).toLocaleDateString()}</td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-3 px-4 text-zinc-500">{complaint.assignedTo || '—'}</td>
+                      <td className="py-3 px-4 text-xs text-zinc-600">{new Date(complaint.createdAt).toLocaleDateString()}</td>
+                      <td className="py-3 px-4 text-center">
                         <Button size="sm" onClick={() => setSelectedComplaint(complaint)}>
                           Review
                         </Button>
@@ -306,6 +387,52 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </Card>
+
+            {/* Social Media Complaints — Replace DUMMY_SOCIAL with live API when ready */}
+            <Card className="p-5 overflow-x-auto border border-zinc-700/60 bg-zinc-900/70">
+              <h3 className="text-base font-bold text-white mb-1">Social Media Complaints</h3>
+              <p className="text-xs text-zinc-500 mb-4">Aggregated from public social platforms</p>
+              <table className="w-full text-sm text-left">
+                <thead className="border-b border-zinc-700/60 bg-zinc-800/40 text-zinc-500 uppercase text-xs tracking-widest">
+                  <tr>
+                    <th className="py-3 px-4">ID</th>
+                    <th className="py-3 px-4">Post Summary</th>
+                    <th className="py-3 px-4">Platform</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Sentiment</th>
+                    <th className="py-3 px-4">Reach</th>
+                    <th className="py-3 px-4">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { id: 'SM001', title: 'Pothole complaint thread', platform: 'Twitter/X',   category: 'roads',          sentiment: 'negative', reach: '1.2K', createdAt: '2026-04-10' },
+                    { id: 'SM002', title: 'Garbage piling up video', platform: 'Instagram',    category: 'sanitation',     sentiment: 'negative', reach: '3.4K', createdAt: '2026-04-11' },
+                    { id: 'SM003', title: 'Broken signal feedback',  platform: 'Facebook',     category: 'infrastructure', sentiment: 'negative', reach: '890',  createdAt: '2026-04-09' },
+                    { id: 'SM004', title: 'Water shortage petition', platform: 'Twitter/X',   category: 'water',          sentiment: 'negative', reach: '6.1K', createdAt: '2026-04-12' },
+                    { id: 'SM005', title: 'Road repair appreciation',platform: 'Facebook',     category: 'roads',          sentiment: 'positive', reach: '540',  createdAt: '2026-04-08' },
+                    { id: 'SM006', title: 'Park cleaning request',   platform: 'Twitter/X',   category: 'environment',    sentiment: 'neutral',  reach: '310',  createdAt: '2026-04-13' },
+                    { id: 'SM007', title: 'Street light outage post',platform: 'Instagram',    category: 'infrastructure', sentiment: 'negative', reach: '2.1K', createdAt: '2026-04-14' },
+                    { id: 'SM008', title: 'Dog menace concern',      platform: 'Facebook',     category: 'animals',        sentiment: 'negative', reach: '1.8K', createdAt: '2026-04-15' },
+                  ].map(row => (
+                    <tr key={row.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/50 transition-colors">
+                      <td className="py-3 px-4 font-mono text-zinc-400 text-xs">{row.id}</td>
+                      <td className="py-3 px-4 max-w-[220px] truncate text-zinc-200">{row.title}</td>
+                      <td className="py-3 px-4 text-zinc-400">{row.platform}</td>
+                      <td className="py-3 px-4 capitalize text-zinc-400">{row.category}</td>
+                      <td className="py-3 px-4">
+                        <span style={{ borderRadius: '0.4rem' }} className="px-2 py-0.5 text-xs font-medium bg-zinc-700 text-zinc-300 capitalize">
+                          {row.sentiment}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-zinc-400">{row.reach}</td>
+                      <td className="py-3 px-4 text-xs text-zinc-600">{new Date(row.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+
           </motion.div>
 
           {selectedComplaint && (
@@ -319,35 +446,34 @@ export default function AdminDashboard() {
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-white dark:bg-slate-950 shadow-2xl flex flex-col"
+                style={{ borderRadius: '0.4rem' }}
+                className="w-full max-w-4xl max-h-[90vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 p-6 flex-shrink-0">
+                <div className="flex items-center justify-between gap-4 border-b border-zinc-800 p-5 flex-shrink-0">
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Review Complaint</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{selectedComplaint.id}</p>
+                    <h2 className="text-lg font-bold text-white">Review Complaint</h2>
+                    <p className="text-xs text-zinc-500 font-mono">{selectedComplaint.id}</p>
                   </div>
-                  <button className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white" onClick={() => setSelectedComplaint(null)}>
-                    Close
-                  </button>
+                  <button className="text-zinc-500 hover:text-white text-lg" onClick={() => setSelectedComplaint(null)}>✕</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6">
                   <div className="grid gap-6 lg:grid-cols-2">
                     <div className="space-y-4">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Title</p>
-                        <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-100">{selectedComplaint.title}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Title</p>
+                        <p className="mt-1 text-lg font-semibold text-white">{selectedComplaint.title}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Description</p>
-                        <p className="mt-2 text-slate-700 dark:text-slate-300">{selectedComplaint.description}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Description</p>
+                        <p className="mt-1 text-sm text-zinc-400">{selectedComplaint.description}</p>
                       </div>
                       {/* Evidence Image */}
-                      <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Evidence Image</p>
+                      <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Evidence Image</p>
                         {selectedComplaint.imageUrl ? (
                           <div className="space-y-3">
-                            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 max-h-52 bg-slate-200 dark:bg-slate-800">
+                            <div style={{ borderRadius: '0.4rem' }} className="overflow-hidden border border-zinc-700 max-h-52 bg-zinc-800">
                               <img
                                 src={selectedComplaint.imageUrl}
                                 alt="Complaint evidence"
@@ -358,65 +484,70 @@ export default function AdminDashboard() {
                               href={selectedComplaint.imageUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-300 hover:text-white hover:underline"
                             >
                               <ExternalLink className="h-4 w-4" />
                               Open full image
                             </a>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500">
+                          <div className="flex items-center gap-3 text-zinc-600">
                             <ImageIcon className="h-8 w-8" />
                             <p className="text-sm italic">No image attached to this complaint.</p>
                           </div>
                         )}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Citizen</p>
-                          <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{selectedComplaint.citizenName}</p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">{selectedComplaint.citizenEmail}</p>
+                        <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Citizen</p>
+                          <p className="mt-1 font-semibold text-zinc-200">{selectedComplaint.citizenName}</p>
+                          <p className="text-xs text-zinc-500">{selectedComplaint.citizenEmail}</p>
                         </div>
-                        <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-4">
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Location</p>
-                          <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{selectedComplaint.location || selectedComplaint.pinCode}</p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">{selectedComplaint.category}</p>
+                        <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Location</p>
+                          <p className="mt-1 font-semibold text-zinc-200">{selectedComplaint.location || selectedComplaint.pinCode}</p>
+                          <p className="text-xs text-zinc-500 capitalize">{selectedComplaint.category}</p>
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-4">
-                      <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-6">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Current status</p>
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                          <span className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold text-white ${statusColor(selectedComplaint.status)}`}>
+                      <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Current status</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span style={{ borderRadius: '0.4rem' }} className="inline-flex px-3 py-1.5 text-sm font-semibold bg-zinc-700 text-zinc-200">
                             {selectedComplaint.status.replace('_', ' ')}
                           </span>
-                          <span className="inline-flex rounded-full bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{getPriorityBadge(selectedComplaint.priority)}</span>
+                          <span style={{ borderRadius: '0.4rem' }} className="inline-flex px-3 py-1.5 text-sm font-semibold bg-zinc-800 border border-zinc-600 text-zinc-200">{getPriorityBadge(selectedComplaint.priority)}</span>
                         </div>
                       </div>
-                      <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-6">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Risk management</p>
+                      <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Risk management</p>
                         <div className="flex flex-wrap gap-2">
                           {['critical', 'high', 'medium', 'low'].map((level) => (
                             <button
                               key={level}
                               type="button"
                               onClick={() => handleRiskChange(level)}
-                              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${reviewRisk === level ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                              style={{ borderRadius: '0.4rem' }}
+                              className={`px-3 py-1.5 text-sm font-semibold transition capitalize ${
+                                reviewRisk === level
+                                  ? 'bg-zinc-600 text-white border border-zinc-400'
+                                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-200'
+                              }`}
                             >
                               {level}
                             </button>
                           ))}
                         </div>
                       </div>
-                      <div className="rounded-3xl bg-slate-100 dark:bg-slate-900 p-6">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Updates</p>
-                        <div className="mt-4 space-y-3">
+                      <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Updates</p>
+                        <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
                           {selectedComplaint.updates.map((update, index) => (
-                            <div key={index} className="rounded-2xl bg-white dark:bg-slate-950 p-4 border border-slate-200 dark:border-slate-800">
-                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{new Date(update.date).toLocaleDateString()}</p>
-                              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{update.message}</p>
+                            <div key={index} style={{ borderRadius: '0.4rem' }} className="bg-zinc-900 p-3 border border-zinc-800">
+                              <p className="text-xs font-semibold text-zinc-400">{new Date(update.date).toLocaleDateString()}</p>
+                              <p className="text-sm text-zinc-300 mt-0.5">{update.message}</p>
                             </div>
                           ))}
                         </div>

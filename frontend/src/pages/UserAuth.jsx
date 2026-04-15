@@ -36,7 +36,7 @@ export default function UserAuth() {
   // Redirect if authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/complaint')
+      navigate('/user-dashboard')
     }
   }, [isAuthenticated, navigate])
 
@@ -99,9 +99,9 @@ export default function UserAuth() {
 
       if (result.success) {
         if (mode === 'login') {
-          setSuccessMessage('Login successful! Redirecting to complaint form...')
+          setSuccessMessage('Login successful! Redirecting...')
           setTimeout(() => {
-            navigate('/complaint')
+            navigate('/user-dashboard')
           }, 1000)
         } else {
           setSuccessMessage('Registration complete. Please log in with your new credentials.')
