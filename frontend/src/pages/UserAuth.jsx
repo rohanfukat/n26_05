@@ -1,6 +1,87 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+
+function ParticleField() {
+  const canvasRef = useRef(null)
+  const particlesRef = useRef([])
+  const mouseRef = useRef({ x: 0, y: 0 })
+  const animationRef = useRef()
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const resize = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    particlesRef.current = Array.from({ length: 40 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35,
+      size: Math.random() * 2 + 1,
+      opacity: Math.random() * 0.45 + 0.2,
+    }))
+
+    const onMouseMove = (e) => { mouseRef.current = { x: e.clientX, y: e.clientY } }
+    window.addEventListener('mousemove', onMouseMove)
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      particlesRef.current.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy
+        const dx = mouseRef.current.x - p.x
+        const dy = mouseRef.current.y - p.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < 150) {
+          const force = (150 - dist) / 150
+          p.vx -= (dx / dist) * force * 0.02
+          p.vy -= (dy / dist) * force * 0.02
+        }
+        if (p.x < 0) p.x = canvas.width
+        if (p.x > canvas.width) p.x = 0
+        if (p.y < 0) p.y = canvas.height
+        if (p.y > canvas.height) p.y = 0
+        p.vx *= 0.99; p.vy *= 0.99
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255,255,255,${p.opacity})`
+        ctx.fill()
+        particlesRef.current.slice(i + 1).forEach((o) => {
+          const dx2 = p.x - o.x; const dy2 = p.y - o.y
+          const d2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
+          if (d2 < 90) {
+            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(o.x, o.y)
+            ctx.strokeStyle = `rgba(255,255,255,${0.09 * (1 - d2 / 90)})`
+            ctx.stroke()
+          }
+        })
+      })
+      animationRef.current = requestAnimationFrame(animate)
+    }
+    animate()
+
+    return () => {
+      window.removeEventListener('resize', resize)
+      window.removeEventListener('mousemove', onMouseMove)
+      if (animationRef.current) cancelAnimationFrame(animationRef.current)
+    }
+  }, [])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: 'fixed', inset: 0, pointerEvents: 'none', opacity: 0.6, zIndex: 0 }}
+    />
+  )
+}
 import toast from 'react-hot-toast'
 import { User, Mail, Phone, Lock, MapPin } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
@@ -140,8 +221,13 @@ export default function UserAuth() {
   }
 
   return (
-    <PageLayout>
-      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 py-12">
+    <PageLayout showNav={false}>
+      <ParticleField />
+      {/* Radial glow matching Welcome page */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
+        background: 'radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255,255,255,0.04) 0%, transparent 70%)'
+      }} />
+      <div className="relative z-10 px-4 py-10 flex justify-center">
         <motion.div
           className="w-full max-w-md"
           variants={containerVariants}
