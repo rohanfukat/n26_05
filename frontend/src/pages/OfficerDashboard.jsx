@@ -1,297 +1,356 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Building2, CheckCircle2, Clock, Loader2, ChevronDown, ChevronRight, MapPin, FileText, Image as ImageIcon } from 'lucide-react'
+import { Building2, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
+import Button from '../components/ui/Button'
 import { useUser } from '../context/UserContext'
 import { apiGetDepartmentGrievances, apiResolveDeptGrievance } from '../services/api'
+import { getPriorityBadge } from '../utils/priorityCalculation'
 import toast from 'react-hot-toast'
 
-const priorityBadge = (priority) => {
-    const map = {
-        critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-        high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-        medium: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-        low: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    }
-    return map[priority] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-}
-
-const statusBadge = (status) => {
-    const map = {
-        pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-        in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-        resolved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    }
-    return map[status] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-}
-
 export default function OfficerDashboard() {
-    const { user } = useUser()
-    const [grievances, setGrievances] = useState([])
-    const [loading, setLoading] = useState(true)
-    const [resolving, setResolving] = useState({})
-    const [expanded, setExpanded] = useState({})
+  const { user } = useUser()
+  const [grievances, setGrievances] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedComplaint, setSelectedComplaint] = useState(null)
+  const [updating, setUpdating] = useState(false)
+  const [viewFilter, setViewFilter] = useState('all')
 
-    useEffect(() => {
-        fetchGrievances()
-    }, [])
+  useEffect(() => {
+    fetchGrievances()
+  }, [])
 
-    const fetchGrievances = async () => {
-        setLoading(true)
-        try {
-            const res = await apiGetDepartmentGrievances()
-            if (res.success) {
-                setGrievances(res.data)
-            }
-        } catch (err) {
-            console.error('Failed to fetch department grievances:', err)
-        } finally {
-            setLoading(false)
-        }
+  const fetchGrievances = async () => {
+    setLoading(true)
+    try {
+      const res = await apiGetDepartmentGrievances()
+      if (res.success) {
+        setGrievances(res.data || [])
+      } else {
+        toast.error('Failed to fetch assigned complaints')
+      }
+    } catch (err) {
+      console.error('Failed to fetch department grievances:', err)
+      toast.error('Failed to load complaints')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    const handleResolve = async (id) => {
-        setResolving((prev) => ({ ...prev, [id]: true }))
-        try {
-            const res = await apiResolveDeptGrievance(id)
-            if (res.success) {
-                toast.success('Grievance resolved successfully')
-                setGrievances((prev) =>
-                    prev.map((g) => (g.id === id ? { ...g, status: 'resolved' } : g))
-                )
-            } else {
-                toast.error(res.error || 'Failed to resolve')
-            }
-        } catch (err) {
-            toast.error('Failed to resolve grievance')
-        } finally {
-            setResolving((prev) => ({ ...prev, [id]: false }))
-        }
+  const handleResolve = async () => {
+    if (!selectedComplaint) return
+    setUpdating(true)
+    try {
+      const res = await apiResolveDeptGrievance(selectedComplaint.id)
+      if (res.success) {
+        toast.success('Complaint resolved successfully')
+        setGrievances((prev) =>
+          prev.map((g) => (g.id === selectedComplaint.id ? { ...g, status: 'resolved' } : g))
+        )
+        setSelectedComplaint(null)
+      } else {
+        toast.error(res.error || 'Failed to resolve complaint')
+      }
+    } catch (err) {
+      toast.error('Failed to resolve complaint')
+      console.error(err)
+    } finally {
+      setUpdating(false)
     }
+  }
 
-    const toggleExpand = (id) => {
-        setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
-    }
+  const visibleComplaints = grievances.filter((g) => {
+    if (viewFilter === 'solved') return g.status === 'resolved'
+    if (viewFilter === 'unsolved') return g.status !== 'resolved'
+    return true
+  })
 
-    const pendingCount = grievances.filter((g) => g.status !== 'resolved').length
-    const resolvedCount = grievances.filter((g) => g.status === 'resolved').length
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 },
+    },
+  }
 
-    return (
-        <PageLayout>
-            <div className="max-w-5xl mx-auto px-4 py-8">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
-                            <Building2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5 },
+    },
+  }
+
+  return (
+    <PageLayout>
+      <div className="w-full px-6 py-5 bg-[#080808]">
+        <motion.div
+          className="w-full"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {/* Header */}
+          <motion.div variants={itemVariants} className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-3 rounded-xl bg-emerald-100/10 border border-emerald-700/30">
+                <Building2 className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Department Dashboard</h1>
+                <p className="text-sm text-zinc-500">{user?.department || 'Department'} — Logged in as {user?.full_name || user?.email}</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Complaint Logs Section */}
+          <motion.div variants={itemVariants} className="space-y-6">
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-white mb-1">Assigned Complaints</h2>
+              <p className="text-sm text-zinc-500">Complaints forwarded by admin for your department</p>
+            </div>
+
+            <Card className="p-5 overflow-x-auto border border-zinc-700/60 bg-zinc-900/70">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+                <h3 className="text-base font-bold text-white">Complaint Log</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['all', 'solved', 'unsolved'].map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setViewFilter(filter)}
+                      style={{ borderRadius: '0.4rem' }}
+                      className={`px-3 py-1.5 text-xs font-semibold transition ${
+                        viewFilter === filter
+                          ? 'bg-zinc-700 text-white border border-zinc-500'
+                          : 'bg-zinc-800/60 text-zinc-400 border border-zinc-700/50 hover:bg-zinc-700/60 hover:text-zinc-200'
+                      }`}
+                    >
+                      {filter === 'all' ? 'All' : filter === 'solved' ? 'Solved' : 'Unsolved'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {loading ? (
+                <div className="py-12 text-center text-zinc-500">Loading complaints...</div>
+              ) : visibleComplaints.length === 0 ? (
+                <div className="py-12 text-center text-zinc-500 text-sm">
+                  No complaints found for this filter.
+                </div>
+              ) : (
+                <table className="w-full text-sm text-left">
+                  <thead className="border-b border-zinc-700/60 bg-zinc-800/40 text-zinc-500 uppercase text-xs tracking-widest">
+                    <tr>
+                      <th className="py-4 px-4">Complaint ID</th>
+                      <th className="py-4 px-4">Issue</th>
+                      <th className="py-4 px-4">Category</th>
+                      <th className="py-4 px-4">Priority</th>
+                      <th className="py-4 px-4">Status</th>
+                      <th className="py-4 px-4">Citizen</th>
+                      <th className="py-4 px-4">Created</th>
+                      <th className="py-4 px-4 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleComplaints.map((g) => (
+                      <motion.tr
+                        key={g.id}
+                        className="border-b border-zinc-800/60 hover:bg-zinc-800/50 transition-colors"
+                        whileHover={{ backgroundColor: 'rgba(0,0,0,0.03)' }}
+                      >
+                        <td className="py-3 px-4 font-mono text-zinc-400 text-xs">
+                          {g.complaint_id || g.id?.slice(0, 8)}
+                        </td>
+                        <td className="py-3 px-4 max-w-[260px] truncate text-zinc-200">
+                          {g.issue || '—'}
+                        </td>
+                        <td className="py-3 px-4 capitalize text-zinc-400">{g.category || '—'}</td>
+                        <td className="py-3 px-4">{getPriorityBadge(g.priority)}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            style={{ borderRadius: '0.4rem' }}
+                            className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-zinc-700 text-zinc-200 capitalize"
+                          >
+                            {(g.status || 'pending').replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-xs text-zinc-400 max-w-[150px] truncate">
+                          {g.citizen_name || '—'}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-zinc-600">
+                          {g.created_at ? new Date(g.created_at).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <Button size="sm" onClick={() => setSelectedComplaint(g)}>
+                            View
+                          </Button>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Card>
+          </motion.div>
+        </motion.div>
+      </div>
+
+      {/* Review Modal */}
+      {selectedComplaint && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => setSelectedComplaint(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            style={{ borderRadius: '0.4rem' }}
+            className="w-full max-w-3xl max-h-[90vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-800 p-5 flex-shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-white">Complaint Details</h2>
+                <p className="text-xs text-zinc-500 font-mono">
+                  {selectedComplaint.complaint_id || selectedComplaint.id}
+                </p>
+              </div>
+              <button
+                className="text-zinc-500 hover:text-white text-lg"
+                onClick={() => setSelectedComplaint(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Left column */}
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500">Issue</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{selectedComplaint.issue || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500">Description</p>
+                    <p className="mt-1 text-sm text-zinc-400">{selectedComplaint.description || '—'}</p>
+                  </div>
+
+                  {/* Evidence Image */}
+                  <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Evidence Image</p>
+                    {selectedComplaint.before_photo ? (
+                      <div className="space-y-3">
+                        <div
+                          style={{ borderRadius: '0.4rem' }}
+                          className="overflow-hidden border border-zinc-700 max-h-52 bg-zinc-800"
+                        >
+                          <img
+                            src={selectedComplaint.before_photo}
+                            alt="Complaint evidence"
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                                Department Dashboard
-                            </h1>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                {user?.department || 'Department'} — Logged in as {user?.full_name || user?.email}
-                            </p>
-                        </div>
+                        <a
+                          href={selectedComplaint.before_photo}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-300 hover:text-white hover:underline"
+                        >
+                          <ExternalLink className="h-4 w-4" /> Open full image
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 text-zinc-600">
+                        <ImageIcon className="h-8 w-8" />
+                        <p className="text-sm italic">No image attached.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500">Citizen Name</p>
+                      <p className="mt-1 font-semibold text-zinc-200">{selectedComplaint.citizen_name || '—'}</p>
                     </div>
-                </motion.div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4 mb-8">
-                    <Card className="p-4 text-center">
-                        <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{grievances.length}</p>
-                        <p className="text-xs text-slate-500">Total Assigned</p>
-                    </Card>
-                    <Card className="p-4 text-center">
-                        <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
-                        <p className="text-xs text-slate-500">Pending</p>
-                    </Card>
-                    <Card className="p-4 text-center">
-                        <p className="text-2xl font-bold text-green-600">{resolvedCount}</p>
-                        <p className="text-xs text-slate-500">Resolved</p>
-                    </Card>
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500">Citizen Email</p>
+                      <p className="mt-1 font-semibold text-zinc-200">{selectedComplaint.citizen_email || '—'}</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Grievance List */}
-                {loading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-                        <span className="ml-3 text-slate-500">Loading grievances…</span>
+                {/* Right column */}
+                <div className="space-y-4">
+                  <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500">Category</p>
+                    <p className="mt-2 capitalize text-zinc-200 font-semibold">
+                      {selectedComplaint.category || '—'}
+                    </p>
+                  </div>
+                  <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500">Priority</p>
+                    <p className="mt-2">{getPriorityBadge(selectedComplaint.priority)}</p>
+                  </div>
+                  <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500">Current Status</p>
+                    <div className="mt-3">
+                      <span
+                        style={{ borderRadius: '0.4rem' }}
+                        className="inline-flex px-3 py-1.5 text-sm font-semibold bg-zinc-700 text-zinc-200 capitalize"
+                      >
+                        {(selectedComplaint.status || 'pending').replace('_', ' ')}
+                      </span>
                     </div>
-                ) : grievances.length === 0 ? (
-                    <Card className="p-10 text-center">
-                        <p className="text-slate-500">No grievances assigned to your department yet.</p>
-                    </Card>
-                ) : (
-                    <div className="space-y-4">
-                        {grievances.map((g, idx) => (
-                            <motion.div
-                                key={g.id}
-                                initial={{ opacity: 0, y: 12 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                            >
-                                <Card className="overflow-hidden">
-                                    {/* Parent row */}
-                                    <div
-                                        className="flex items-center justify-between gap-4 p-5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"
-                                        onClick={() => toggleExpand(g.id)}
-                                    >
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            {expanded[g.id] ? (
-                                                <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                            ) : (
-                                                <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                                                    {g.parent_issue}
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-0.5">
-                                                    {g.category} • {g.child_grievance_ids?.length || 0} child grievance(s)
-                                                    {g.created_at && ` • ${new Date(g.created_at).toLocaleDateString()}`}
-                                                </p>
-                                            </div>
-                                        </div>
+                  </div>
 
-                                        <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                            <span className={`px-2 py-1 text-[10px] font-semibold uppercase rounded ${priorityBadge(g.priority)}`}>
-                                                {g.priority}
-                                            </span>
-                                            <span className={`px-2 py-1 text-[10px] font-semibold uppercase rounded ${statusBadge(g.status)}`}>
-                                                {(g.status || 'pending').replace('_', ' ')}
-                                            </span>
-                                            {g.status !== 'resolved' ? (
-                                                <button
-                                                    onClick={() => handleResolve(g.id)}
-                                                    disabled={resolving[g.id]}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-green-600 hover:bg-green-500 text-white transition disabled:opacity-50 disabled:cursor-wait"
-                                                >
-                                                    {resolving[g.id] ? (
-                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    ) : (
-                                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                                    )}
-                                                    Resolve
-                                                </button>
-                                            ) : (
-                                                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                                    Resolved
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Child grievances — expanded */}
-                                    {expanded[g.id] && g.children && g.children.length > 0 && (
-                                        <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
-                                            {g.children.map((child, cIdx) => (
-                                                <div
-                                                    key={child.id}
-                                                    className="px-5 py-4 pl-12 border-b border-slate-100 dark:border-slate-700/50 last:border-0"
-                                                >
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <FileText className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                                                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
-                                                                    {child.issue || 'Untitled'}
-                                                                </p>
-                                                                {child.complaint_id && (
-                                                                    <span className="text-[10px] font-mono text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">
-                                                                        {child.complaint_id}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            {child.description && (
-                                                                <p className="text-xs text-slate-600 dark:text-slate-400 mb-2 line-clamp-3">
-                                                                    {child.description}
-                                                                </p>
-                                                            )}
-
-                                                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
-                                                                {child.location && (
-                                                                    <span className="flex items-center gap-1">
-                                                                        <MapPin className="h-3 w-3" />
-                                                                        {child.location}
-                                                                    </span>
-                                                                )}
-                                                                {child.latitude && child.longitude && (
-                                                                    <span className="font-mono">
-                                                                        {Number(child.latitude).toFixed(4)}, {Number(child.longitude).toFixed(4)}
-                                                                    </span>
-                                                                )}
-                                                                {child.category && (
-                                                                    <span className="capitalize bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">
-                                                                        {child.category}
-                                                                    </span>
-                                                                )}
-                                                                {child.priority && (
-                                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${priorityBadge(child.priority)}`}>
-                                                                        {child.priority}
-                                                                    </span>
-                                                                )}
-                                                                {child.status && (
-                                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${statusBadge(child.status)}`}>
-                                                                        {(child.status || '').replace('_', ' ')}
-                                                                    </span>
-                                                                )}
-                                                                {child.source && (
-                                                                    <span className="capitalize">via {child.source}</span>
-                                                                )}
-                                                                {child.created_at && (
-                                                                    <span>{new Date(child.created_at).toLocaleDateString()}</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Photo */}
-                                                        {(child.before_photo || child.after_photo) && (
-                                                            <div className="flex gap-2 flex-shrink-0">
-                                                                {child.before_photo && (
-                                                                    <a href={child.before_photo} target="_blank" rel="noopener noreferrer" className="block">
-                                                                        <div className="relative group">
-                                                                            <img
-                                                                                src={child.before_photo}
-                                                                                alt="Before"
-                                                                                className="h-20 w-20 object-cover rounded-lg border border-slate-200 dark:border-slate-600 hover:opacity-80 transition"
-                                                                            />
-                                                                            <span className="absolute bottom-0.5 left-0.5 text-[8px] bg-black/60 text-white px-1 rounded">Before</span>
-                                                                        </div>
-                                                                    </a>
-                                                                )}
-                                                                {child.after_photo && (
-                                                                    <a href={child.after_photo} target="_blank" rel="noopener noreferrer" className="block">
-                                                                        <div className="relative group">
-                                                                            <img
-                                                                                src={child.after_photo}
-                                                                                alt="After"
-                                                                                className="h-20 w-20 object-cover rounded-lg border border-slate-200 dark:border-slate-600 hover:opacity-80 transition"
-                                                                            />
-                                                                            <span className="absolute bottom-0.5 left-0.5 text-[8px] bg-black/60 text-white px-1 rounded">After</span>
-                                                                        </div>
-                                                                    </a>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </Card>
-                            </motion.div>
-                        ))}
+                  {/* Timestamps */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500">Created</p>
+                      <p className="mt-1 text-sm text-zinc-300">
+                        {selectedComplaint.created_at
+                          ? new Date(selectedComplaint.created_at).toLocaleString()
+                          : '—'}
+                      </p>
                     </div>
-                )}
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500">Updated</p>
+                      <p className="mt-1 text-sm text-zinc-300">
+                        {selectedComplaint.updated_at
+                          ? new Date(selectedComplaint.updated_at).toLocaleString()
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action button */}
+                  <div>
+                    {selectedComplaint.status !== 'resolved' && (
+                      <Button className="w-full" onClick={handleResolve} isLoading={updating}>
+                        Resolve
+                      </Button>
+                    )}
+                    {selectedComplaint.status === 'resolved' && (
+                      <div className="w-full py-3 text-center bg-green-700/20 border border-green-700/50 rounded text-green-300 text-sm font-semibold">
+                        ✓ Already Resolved
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-        </PageLayout>
-    )
+          </motion.div>
+        </motion.div>
+      )}
+    </PageLayout>
+  )
 }

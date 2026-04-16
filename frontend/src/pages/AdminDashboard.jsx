@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Search, TrendingUp, AlertTriangle, BarChart3, Clock, Users, PieChart, Image as ImageIcon, ExternalLink } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
@@ -9,6 +10,7 @@ import AdminMumbaiMap from '../components/AdminMumbaiMap'
 import { useComplaints } from '../hooks/useComplaints'
 import { useDashboard } from '../hooks/useDashboard'
 import { getPriorityColor, getPriorityBadge } from '../utils/priorityCalculation'
+import { apiForwardToDepartment } from '../services/api'
 import {
   AreaChart, Area,
   BarChart as ReBarChart, Bar,
@@ -32,12 +34,44 @@ export default function AdminDashboard() {
   const [editStatus, setEditStatus] = useState('')
   const [editDept, setEditDept] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [forwarding, setForwarding] = useState(false)
 
   useEffect(() => {
     fetchComplaints({ sortBy: 'priority' })
     fetchGrievanceLogs()
     fetchStatistics()
   }, [fetchComplaints, fetchGrievanceLogs, fetchStatistics])
+
+  const handleForwardToDepartment = async () => {
+    if (!selectedComplaint || !editDept) {
+      toast.error('Please select a department in the Department Allocated section')
+      return
+    }
+    setForwarding(true)
+    try {
+      const res = await apiForwardToDepartment({
+        parent_issue: selectedComplaint.issue || '',
+        category: selectedComplaint.category || editCategory || '',
+        priority: selectedComplaint.priority || editPriority || '',
+        dept_allocated: editDept,
+        child_grievance_ids: [selectedComplaint.id],
+      })
+      if (res.success) {
+        toast.success('Complaint forwarded to department successfully')
+        setSelectedComplaint(null)
+        setEditDept('')
+        fetchGrievanceLogs()
+        fetchComplaints({ sortBy: 'priority' })
+      } else {
+        toast.error(res.error || 'Failed to forward complaint')
+      }
+    } catch (err) {
+      toast.error('Failed to forward complaint')
+      console.error(err)
+    } finally {
+      setForwarding(false)
+    }
+  }
 
   useEffect(() => {
     if (selectedComplaint) {
@@ -711,20 +745,25 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex gap-3">
+                    <div className="space-y-3">
+                      {editStatus !== 'resolved' && editDept && (
+                        <Button className="w-full" onClick={handleForwardToDepartment} isLoading={forwarding}>
+                          Forward to {editDept}
+                        </Button>
+                      )}
+                      {editStatus !== 'resolved' && !editDept && (
+                        <div className="w-full py-3 px-4 text-center bg-zinc-800 border border-zinc-700 text-zinc-400 text-sm font-semibold rounded" style={{ borderRadius: '0.4rem' }}>
+                          Select department in "Department Allocated" to forward
+                        </div>
+                      )}
                       {(editCategory !== (selectedComplaint.category || '') ||
                         editPriority !== (selectedComplaint.priority || '') ||
                         editStatus !== (selectedComplaint.status || '') ||
                         editDept !== (selectedComplaint.dept_allocated || '')) && (
-                          <Button className="flex-1" onClick={handleUpdateGrievance} isLoading={updating}>
+                          <Button className="w-full" onClick={handleUpdateGrievance} isLoading={updating}>
                             Save Changes
                           </Button>
                         )}
-                      {editStatus !== 'resolved' && (
-                        <Button variant="secondary" className="flex-1" onClick={handleResolve} isLoading={updating}>
-                          Mark Resolved
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </div>
