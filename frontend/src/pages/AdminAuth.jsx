@@ -139,9 +139,6 @@ export default function AdminAuth() {
               </Button>
             </motion.form>
 
-            <motion.div variants={itemVariants} className="mt-8 rounded-3xl border border-slate-200/70 bg-slate-50/90 p-4 text-sm text-slate-600 dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-slate-400">
-              Use your official employee ID and password for secure dashboard access.
-            </motion.div>
           </Card>
         </motion.div>
       </div>

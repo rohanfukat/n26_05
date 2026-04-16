@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, Trash2, MapPin } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
@@ -19,7 +20,6 @@ export default function ComplaintForm() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
   const [errors, setErrors] = useState({})
-  const [submissionError, setSubmissionError] = useState('')
   const [successData, setSuccessData] = useState(null)
   const [locationLoading, setLocationLoading] = useState(false)
   const [locationError, setLocationError] = useState('')
@@ -140,7 +140,6 @@ export default function ComplaintForm() {
     if (isLoading || apiLoading) return
     if (!validateForm()) return
 
-    setSubmissionError('')
     setLocationError('')
     setIsLoading(true)
 
@@ -203,20 +202,20 @@ export default function ComplaintForm() {
 
       const result = await createComplaint(complaintData)
 
-      if (result && result.id) {
-        setSuccessData(result)
+      if (result && result.success && result.data && result.data.id) {
+        setSuccessData(result.data)
         setIsSuccess(true)
 
         setTimeout(() => {
           navigate('/user-dashboard')
         }, 3000)
       } else {
-        setSubmissionError(apiError || 'Complaint submission failed.')
+        toast.error(result?.error || apiError || 'Complaint submission failed.')
       }
 
     } catch (err) {
       console.error(err)
-      setSubmissionError(
+      toast.error(
         err?.response?.data?.detail ||
         err?.message ||
         (apiError || 'Something went wrong.')
@@ -238,12 +237,6 @@ export default function ComplaintForm() {
               <p className="text-slate-500 mb-6">
                 Submit your grievance and track resolution status.
               </p>
-
-              {submissionError && (
-                <div className="mb-4 p-4 rounded-xl bg-red-100 text-red-700">
-                  {submissionError}
-                </div>
-              )}
 
               {locationError && !isSuccess && (
                 <div className="mb-4 p-4 rounded-xl bg-yellow-100 text-yellow-700">

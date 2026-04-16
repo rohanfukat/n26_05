@@ -24,6 +24,25 @@ const DEMO_WEEKLY = [
   { week: 'W5', filed: 4 },
   { week: 'W6', filed: 3 },
 ]
+
+function getWeeklyActivity(complaints) {
+  if (!complaints || complaints.length === 0) return DEMO_WEEKLY
+  const now = new Date()
+  const weeks = []
+  for (let i = 5; i >= 0; i--) {
+    const weekStart = new Date(now)
+    weekStart.setDate(now.getDate() - i * 7)
+    weekStart.setHours(0, 0, 0, 0)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 7)
+    const count = complaints.filter(c => {
+      const d = new Date(c.created_at)
+      return d >= weekStart && d < weekEnd
+    }).length
+    weeks.push({ week: `W${6 - i}`, filed: count })
+  }
+  return weeks
+}
 const PIE_C = ['#f4f4f5', '#71717a', '#3f3f46']
 
 export default function CitizenDashboard() {
@@ -86,9 +105,9 @@ export default function CitizenDashboard() {
             <div className="h-[110px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ReBarChart data={[
-                  { label: 'Filed', value: totalComplaints || 8 },
-                  { label: 'Resolved', value: resolvedCount || 5 },
-                  { label: 'Pending', value: (totalComplaints - resolvedCount) || 3 },
+                  { label: 'Filed', value: totalComplaints },
+                  { label: 'Resolved', value: resolvedCount },
+                  { label: 'Pending', value: totalComplaints - resolvedCount },
                 ]}>
                   <XAxis dataKey="label" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} width={20} />
@@ -104,9 +123,9 @@ export default function CitizenDashboard() {
             <h3 className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Resolution Status</h3>
             {(() => {
               const pd = [
-                { name: 'Resolved', value: resolvedCount || 5 },
-                { name: 'In Progress', value: inProgressCount || 2 },
-                { name: 'Pending', value: pendingCount || 1 },
+                { name: 'Resolved', value: resolvedCount },
+                { name: 'In Progress', value: inProgressCount },
+                { name: 'Pending', value: pendingCount },
               ]
               return (
                 <>
@@ -138,7 +157,7 @@ export default function CitizenDashboard() {
             <h3 className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Weekly Activity</h3>
             <div className="h-[110px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={DEMO_WEEKLY}>
+                <AreaChart data={getWeeklyActivity(myComplaints)}>
                   <defs>
                     <linearGradient id="cwa" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#71717a" stopOpacity={0.35} />

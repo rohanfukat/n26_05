@@ -13,6 +13,7 @@ import models.grievance  # sessions + grievances tables
 from routes.auth import router as auth_router
 from routes.webhook import router as webhook_router
 from routes.grievance import router as grievance_router
+from routes.examine_image import router as examine_image_router
 
 load_dotenv()
 
@@ -43,6 +44,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(webhook_router)    # GET /webhook + POST /webhook
 app.include_router(grievance_router)  # POST/GET/PATCH /grievances
+app.include_router(examine_image_router)  # POST /examine_image
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

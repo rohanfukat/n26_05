@@ -26,7 +26,7 @@ from models.grievance import Grievance
 from models.user import User, UserRole
 from models.schemas import GrievanceUpdateRequest, GrievanceResponse
 from utils.auth import decode_access_token
-from utils.classifier import classify_grievance
+from services.grievance_service import classify_grievance
 from utils.cloudinary import upload_image
 from utils.whatsapp import send_whatsapp_message
 from classifier import analyze_and_compare
@@ -408,6 +408,323 @@ def cluster_grievances(
         )
 
     return ClusterResponse(clusters=clusters, noise=noise_points)
+
+
+# ─────────────────────────────────────────
+#  POST /grievances/segregate (admin)
+#  AI-powered deduplication & grouping
+# ─────────────────────────────────────────
+
+class SegregateRequest(BaseModel):
+    grievance_ids: List[str]  # list of grievance UUID strings
+
+
+class ChildGrievance(BaseModel):
+    id: str
+    complaint_id: Optional[str] = None
+    issue: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    category: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    created_at: Optional[str] = None
+    identity: Optional[str] = None
+
+
+class ParentGrievance(BaseModel):
+    parent_issue: str              # AI-generated representative title
+    category: str
+    priority: str                  # highest priority among children
+    status: str                    # current status
+    children: List[ChildGrievance]
+    child_ids: List[str]           # convenience list of child UUIDs
+
+
+class SegregateResponse(BaseModel):
+    groups: List[ParentGrievance]
+
+
+def _priority_rank(p: str) -> int:
+    return {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(p or "medium", 0)
+
+
+@router.post(
+    "/segregate",
+    response_model=SegregateResponse,
+    summary="AI-segregate grievances: deduplicate & group by similarity",
+)
+def segregate_grievances(
+    body: SegregateRequest,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    """
+    Takes a list of grievance IDs (e.g. from a cluster), uses Gemini LLM
+    to intelligently group similar/duplicate grievances together.
+    """
+    token_data = _get_token_payload(authorization)
+    _require_admin(token_data)
+
+    if not body.grievance_ids:
+        return SegregateResponse(groups=[])
+
+    # Fetch grievances
+    rows = (
+        db.query(Grievance)
+        .filter(Grievance.id.in_(body.grievance_ids))
+        .all()
+    )
+    if not rows:
+        return SegregateResponse(groups=[])
+
+    import json as _json
+    import google.generativeai as genai
+
+    # Build a concise list for Gemini
+    grievance_list = []
+    for idx, g in enumerate(rows):
+        grievance_list.append({
+            "idx": idx,
+            "issue": g.issue or "",
+            "description": (g.description or "")[:200],
+            "category": g.category or "",
+            "location": g.location or "",
+        })
+
+    prompt = f"""You are a grievance deduplication AI for a municipal corporation.
+Given the following list of citizen grievances, group them by ACTUAL SIMILARITY of the problem described.
+
+RULES:
+1. Two grievances should be in the same group ONLY if they describe the SAME type of problem (e.g. two reports of potholes on roads, two reports of garbage overflow).
+2. Do NOT group different problems together. "Water Leakage" and "Garbage Overflow" are DIFFERENT groups even if in the same area.
+3. "Power Outage" and "Road Damage" are DIFFERENT groups.
+4. Within the same problem type (e.g. "Garbage"), if descriptions suggest genuinely different sub-issues (e.g. "garbage not collected for a week" vs "illegal garbage dumping in river"), put them in SEPARATE groups.
+5. Each group needs a short representative title (parent_issue) that summarizes the common problem.
+
+Grievances:
+{_json.dumps(grievance_list, indent=2)}
+
+Respond with ONLY a JSON array where each element is:
+{{"parent_issue": "Short descriptive title", "category": "category name", "member_indices": [list of idx values]}}
+
+Example response:
+[
+  {{"parent_issue": "Pothole on main road", "category": "Road", "member_indices": [0, 3, 7]}},
+  {{"parent_issue": "Garbage overflow near residential area", "category": "Garbage", "member_indices": [1, 4]}},
+  {{"parent_issue": "Illegal garbage dumping in drain", "category": "Garbage", "member_indices": [5]}}
+]
+
+Return ONLY valid JSON, no markdown, no explanation."""
+
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash-lite",
+            generation_config={"temperature": 0.1, "max_output_tokens": 2000},
+        )
+        response = model.generate_content(prompt)
+        raw_text = response.text.strip()
+        # Strip markdown code fences if present
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else raw_text[3:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3].strip()
+        ai_groups = _json.loads(raw_text)
+    except Exception as e:
+        print(f"[Segregate] Gemini call failed: {e}, falling back to category-based grouping")
+        # Fallback: group by category
+        cat_map = defaultdict(list)
+        for idx, g in enumerate(rows):
+            cat_map[g.category or "General"].append(idx)
+        ai_groups = [
+            {"parent_issue": cat, "category": cat, "member_indices": indices}
+            for cat, indices in cat_map.items()
+        ]
+
+    # Validate and build response
+    all_assigned = set()
+    result_groups = []
+
+    for grp in ai_groups:
+        member_indices = grp.get("member_indices", [])
+        # Filter valid indices not already assigned
+        valid_indices = [i for i in member_indices if 0 <= i < len(rows) and i not in all_assigned]
+        if not valid_indices:
+            continue
+        all_assigned.update(valid_indices)
+
+        members = [rows[idx] for idx in valid_indices]
+        parent_issue = grp.get("parent_issue", members[0].issue or "Untitled")
+        category = grp.get("category", members[0].category or "General")
+
+        highest_priority = max(members, key=lambda g: _priority_rank(g.priority))
+        priority = highest_priority.priority or "medium"
+
+        statuses = [g.status or "pending" for g in members]
+        if "pending" in statuses:
+            parent_status = "pending"
+        elif "in_progress" in statuses:
+            parent_status = "in_progress"
+        else:
+            parent_status = "resolved"
+
+        children = []
+        child_ids = []
+        for g in members:
+            children.append(ChildGrievance(
+                id=str(g.id),
+                complaint_id=g.complaint_id,
+                issue=g.issue,
+                description=g.description,
+                location=g.location,
+                category=g.category,
+                priority=g.priority,
+                status=g.status,
+                source=g.source,
+                created_at=str(g.created_at) if g.created_at else None,
+                identity=g.identity,
+            ))
+            child_ids.append(str(g.id))
+
+        result_groups.append(ParentGrievance(
+            parent_issue=parent_issue,
+            category=category,
+            priority=priority,
+            status=parent_status,
+            children=children,
+            child_ids=child_ids,
+        ))
+
+    # Add any unassigned grievances as individual groups
+    for idx in range(len(rows)):
+        if idx not in all_assigned:
+            g = rows[idx]
+            result_groups.append(ParentGrievance(
+                parent_issue=g.issue or "Untitled Grievance",
+                category=g.category or "General",
+                priority=g.priority or "medium",
+                status=g.status or "pending",
+                children=[ChildGrievance(
+                    id=str(g.id),
+                    complaint_id=g.complaint_id,
+                    issue=g.issue,
+                    description=g.description,
+                    location=g.location,
+                    category=g.category,
+                    priority=g.priority,
+                    status=g.status,
+                    source=g.source,
+                    created_at=str(g.created_at) if g.created_at else None,
+                    identity=g.identity,
+                )],
+                child_ids=[str(g.id)],
+            ))
+
+    return SegregateResponse(groups=result_groups)
+
+
+# ─────────────────────────────────────────
+#  PATCH /grievances/segregate/update-status
+#  Bulk-update status for a parent group
+# ─────────────────────────────────────────
+
+class BulkStatusUpdateRequest(BaseModel):
+    grievance_ids: List[str]   # all child IDs in the parent group
+    status: str                # new status: pending | in_progress | resolved
+
+
+@router.patch(
+    "/segregate/update-status",
+    summary="Update status for a parent group — cascades to all children",
+)
+def bulk_update_status(
+    body: BulkStatusUpdateRequest,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    token_data = _get_token_payload(authorization)
+    _require_admin(token_data)
+
+    if body.status not in ("pending", "in_progress", "resolved"):
+        raise HTTPException(status_code=400, detail="Invalid status value")
+
+    grievances = db.query(Grievance).filter(Grievance.id.in_(body.grievance_ids)).all()
+
+    if not grievances:
+        raise HTTPException(status_code=404, detail="No grievances found")
+
+    updated_ids = []
+    for g in grievances:
+        g.status = body.status
+        updated_ids.append(str(g.id))
+
+        # Send WhatsApp notification to each user
+        status_labels = {
+            "pending": "moved to Pending",
+            "in_progress": "now In Progress",
+            "resolved": "Resolved",
+        }
+        status_text = status_labels.get(body.status, body.status)
+        complaint_label = g.complaint_id or str(g.id)
+        message = (
+            f"Hello! Your complaint ({complaint_label}) has been {status_text}. "
+            f"Thank you for your patience."
+        )
+
+        phone_number = None
+        if g.source == "whatsapp" and g.identity:
+            phone_number = g.identity
+        elif g.identity:
+            user = db.query(User).filter(User.id == g.identity).first()
+            if user and user.mobile_number:
+                phone_number = user.mobile_number
+
+        if phone_number:
+            phone_number = phone_number.lstrip("+").strip()
+            if not phone_number.startswith("91"):
+                phone_number = f"91{phone_number}"
+            try:
+                send_whatsapp_message(phone_number, message)
+            except Exception as exc:
+                print(f"[WhatsApp] Failed to notify {phone_number}: {exc}")
+
+    db.commit()
+
+    return {
+        "success": True,
+        "updated_count": len(updated_ids),
+        "updated_ids": updated_ids,
+        "new_status": body.status,
+    }
+
+
+# ─────────────────────────────────────────
+#  POST /grievances/segregate/unlink
+#  Remove a child grievance from a group
+# ─────────────────────────────────────────
+
+class UnlinkRequest(BaseModel):
+    grievance_id: str   # the child to unlink (just returns success, grouping is frontend-managed)
+
+
+@router.post(
+    "/segregate/unlink",
+    summary="Unlink a child grievance from its parent group",
+)
+def unlink_grievance(
+    body: UnlinkRequest,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    token_data = _get_token_payload(authorization)
+    _require_admin(token_data)
+
+    grievance = db.query(Grievance).filter(Grievance.id == body.grievance_id).first()
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found")
+
+    return {"success": True, "unlinked_id": str(grievance.id)}
 
 
 # ─────────────────────────────────────────

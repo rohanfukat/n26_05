@@ -3,8 +3,8 @@ import { MapContainer, TileLayer, CircleMarker, Circle, Popup, useMap } from 're
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { motion, AnimatePresence } from 'framer-motion'
-import { apiGetMapPoints, apiClusterGrievances } from '../services/api'
-import { Sparkles, X, MapPin, AlertTriangle, Loader2 } from 'lucide-react'
+import { apiGetMapPoints, apiClusterGrievances, apiSegregateGrievances, apiSegregateUpdateStatus, apiSegregateUnlink } from '../services/api'
+import { Sparkles, X, MapPin, AlertTriangle, Loader2, Search, ChevronDown, ChevronRight, Unlink, CheckCircle2, Clock, Hourglass } from 'lucide-react'
 
 // Fix default marker icons
 delete L.Icon.Default.prototype._getIconUrl
@@ -43,8 +43,27 @@ function MapController({ flyTo }) {
 }
 
 // ── Cluster modal ─────────────────────────────────────────────────────────────
-function ClusterModal({ cluster, onClose }) {
+function ClusterModal({ cluster, onClose, segregationCache, setSegregationCache }) {
   if (!cluster) return null
+
+  const clusterId = cluster.cluster_id
+  const cached = segregationCache[clusterId]
+  const [segregated, setSegregated] = useState(!!cached)
+  const [segregating, setSegregating] = useState(false)
+  const [groups, setGroups] = useState(cached?.groups || [])
+  const [expandedGroups, setExpandedGroups] = useState(cached?.expandedGroups || {})
+  const [updatingStatus, setUpdatingStatus] = useState({})
+  const [unlinking, setUnlinking] = useState({})
+
+  // Persist to cache whenever groups change
+  useEffect(() => {
+    if (segregated && groups.length > 0) {
+      setSegregationCache((prev) => ({
+        ...prev,
+        [clusterId]: { groups, expandedGroups },
+      }))
+    }
+  }, [groups, expandedGroups, segregated, clusterId, setSegregationCache])
 
   const statusBadge = (status) => {
     const map = {
@@ -63,6 +82,83 @@ function ClusterModal({ cluster, onClose }) {
       low: 'bg-green-500/20 text-green-400 border-green-500/30',
     }
     return map[priority] || 'bg-zinc-700 text-zinc-300 border-zinc-600'
+  }
+
+  const handleSegregate = async () => {
+    setSegregating(true)
+    try {
+      const ids = cluster.complaints.map((c) => c.id)
+      const res = await apiSegregateGrievances(ids)
+      if (res.success && res.data.groups) {
+        setGroups(res.data.groups)
+        setSegregated(true)
+        // Auto-expand all groups
+        const expanded = {}
+        res.data.groups.forEach((_, idx) => { expanded[idx] = true })
+        setExpandedGroups(expanded)
+      }
+    } catch (err) {
+      console.error('Segregation failed:', err)
+    } finally {
+      setSegregating(false)
+    }
+  }
+
+  const toggleGroup = (idx) => {
+    setExpandedGroups((prev) => ({ ...prev, [idx]: !prev[idx] }))
+  }
+
+  const handleStatusChange = async (groupIdx, newStatus) => {
+    const group = groups[groupIdx]
+    setUpdatingStatus((prev) => ({ ...prev, [groupIdx]: true }))
+    try {
+      const res = await apiSegregateUpdateStatus(group.child_ids, newStatus)
+      if (res.success) {
+        setGroups((prev) => prev.map((g, i) => {
+          if (i !== groupIdx) return g
+          return {
+            ...g,
+            status: newStatus,
+            children: g.children.map((c) => ({ ...c, status: newStatus })),
+          }
+        }))
+      }
+    } catch (err) {
+      console.error('Status update failed:', err)
+    } finally {
+      setUpdatingStatus((prev) => ({ ...prev, [groupIdx]: false }))
+    }
+  }
+
+  const handleUnlink = async (groupIdx, childId) => {
+    setUnlinking((prev) => ({ ...prev, [childId]: true }))
+    try {
+      const res = await apiSegregateUnlink(childId)
+      if (res.success) {
+        setGroups((prev) => {
+          const updated = prev.map((g, i) => {
+            if (i !== groupIdx) return g
+            return {
+              ...g,
+              children: g.children.filter((c) => c.id !== childId),
+              child_ids: g.child_ids.filter((id) => id !== childId),
+            }
+          })
+          // Remove empty groups
+          return updated.filter((g) => g.children.length > 0)
+        })
+      }
+    } catch (err) {
+      console.error('Unlink failed:', err)
+    } finally {
+      setUnlinking((prev) => ({ ...prev, [childId]: false }))
+    }
+  }
+
+  const statusIcon = (s) => {
+    if (s === 'resolved') return <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+    if (s === 'in_progress') return <Hourglass className="h-3.5 w-3.5 text-blue-400" />
+    return <Clock className="h-3.5 w-3.5 text-yellow-400" />
   }
 
   return (
@@ -97,17 +193,160 @@ function ClusterModal({ cluster, onClose }) {
               </p>
             </div>
           </div>
-          <button
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition"
-            onClick={onClose}
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Toggle between segregated and flat view */}
+            {cached && (
+              <button
+                onClick={() => setSegregated(!segregated)}
+                style={{ borderRadius: '0.4rem' }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition"
+              >
+                {segregated ? 'Show All' : 'Show Segregated'}
+              </button>
+            )}
+            {!cached && (
+              <button
+                onClick={handleSegregate}
+                disabled={segregating}
+                style={{ borderRadius: '0.4rem' }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all duration-200 ${segregating
+                  ? 'bg-purple-500/80 text-white cursor-wait'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white'
+                  }`}
+              >
+                {segregating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Segregating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    AI Segregate
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition"
+              onClick={onClose}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Complaints list */}
+        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {cluster.complaints.map((c) => (
+          {/* ── Segregated View: Parent-Child Accordion ── */}
+          {segregated && groups.length > 0 && (
+            <div className="space-y-3">
+              {groups.map((group, gIdx) => (
+                <div
+                  key={gIdx}
+                  style={{ borderRadius: '0.5rem' }}
+                  className="bg-zinc-800/50 border border-zinc-700/50 overflow-hidden"
+                >
+                  {/* Parent Row */}
+                  <div
+                    className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-800/80 transition"
+                    onClick={() => toggleGroup(gIdx)}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {expandedGroups[gIdx] ? (
+                        <ChevronDown className="h-4 w-4 text-zinc-400 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-zinc-400 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white truncate">
+                          📁 {group.parent_issue}
+                        </p>
+                        <p className="text-[11px] text-zinc-500">
+                          {group.children.length} grievance{group.children.length !== 1 ? 's' : ''} grouped • {group.category}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <span
+                        style={{ borderRadius: '0.3rem' }}
+                        className={`px-2 py-0.5 text-[10px] font-semibold uppercase border ${priorityBadge(group.priority)}`}
+                      >
+                        {group.priority}
+                      </span>
+                      {/* Status dropdown */}
+                      <div className="relative">
+                        <select
+                          value={group.status}
+                          onChange={(e) => handleStatusChange(gIdx, e.target.value)}
+                          disabled={updatingStatus[gIdx]}
+                          style={{ borderRadius: '0.3rem' }}
+                          className="appearance-none bg-zinc-700 text-xs text-zinc-200 pl-6 pr-6 py-1 border border-zinc-600 cursor-pointer hover:border-zinc-500 transition disabled:opacity-50 disabled:cursor-wait"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="resolved">Resolved</option>
+                        </select>
+                        <div className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                          {updatingStatus[gIdx] ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-zinc-400" />
+                          ) : (
+                            statusIcon(group.status)
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Children — expanded */}
+                  {expandedGroups[gIdx] && (
+                    <div className="border-t border-zinc-700/40">
+                      {group.children.map((child) => (
+                        <div
+                          key={child.id}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 pl-11 border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/40 transition"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-zinc-300 truncate">
+                              {child.issue || 'Untitled'}
+                            </p>
+                            <div className="flex items-center gap-3 mt-0.5 text-[10px] text-zinc-500">
+                              <span className="font-mono">{child.complaint_id || child.id}</span>
+                              {child.location && <span>📍 {child.location}</span>}
+                              {child.source && <span className="capitalize">via {child.source}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span
+                              style={{ borderRadius: '0.3rem' }}
+                              className={`px-1.5 py-0.5 text-[9px] font-semibold uppercase border ${statusBadge(child.status)}`}
+                            >
+                              {(child.status || 'pending').replace('_', ' ')}
+                            </span>
+                            <button
+                              onClick={() => handleUnlink(gIdx, child.id)}
+                              disabled={unlinking[child.id] || group.children.length <= 1}
+                              title={group.children.length <= 1 ? "Can't unlink the last grievance" : "Remove from group"}
+                              className="p-1 rounded text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              {unlinking[child.id] ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Unlink className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Flat View: Original complaint list (when not segregated) ── */}
+          {!segregated && cluster.complaints.map((c) => (
             <div
               key={c.id}
               style={{ borderRadius: '0.5rem' }}
@@ -163,15 +402,24 @@ function ClusterModal({ cluster, onClose }) {
         {/* Footer summary */}
         <div className="border-t border-zinc-800 px-6 py-3 flex-shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-4 text-xs text-zinc-500">
-            <span>
-              🔴 {cluster.complaints.filter(c => c.priority === 'critical' || c.priority === 'high').length} high priority
-            </span>
-            <span>
-              🟡 {cluster.complaints.filter(c => c.status === 'pending').length} pending
-            </span>
-            <span>
-              ✅ {cluster.complaints.filter(c => c.status === 'resolved').length} resolved
-            </span>
+            {segregated ? (
+              <>
+                <span>📁 {groups.length} unique group{groups.length !== 1 ? 's' : ''}</span>
+                <span>📋 {groups.reduce((sum, g) => sum + g.children.length, 0)} total grievances</span>
+              </>
+            ) : (
+              <>
+                <span>
+                  🔴 {cluster.complaints.filter(c => c.priority === 'critical' || c.priority === 'high').length} high priority
+                </span>
+                <span>
+                  🟡 {cluster.complaints.filter(c => c.status === 'pending').length} pending
+                </span>
+                <span>
+                  ✅ {cluster.complaints.filter(c => c.status === 'resolved').length} resolved
+                </span>
+              </>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -197,6 +445,11 @@ const AdminMumbaiMap = () => {
   const [error, setError] = useState(null)
   const [selectedCluster, setSelectedCluster] = useState(null)
   const [flyTo, setFlyTo] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [highlightedPointId, setHighlightedPointId] = useState(null)
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [segregationCache, setSegregationCache] = useState({}) // cluster_id -> { groups, expandedGroups }
 
   // Fetch all map points on mount
   const fetchPoints = useCallback(async () => {
@@ -247,8 +500,80 @@ const AdminMumbaiMap = () => {
     setIsClustered(false)
   }
 
+  // Search complaints by title/issue
+  const handleSearchChange = (value) => {
+    setSearchQuery(value)
+    if (value.trim().length === 0) {
+      setSearchResults([])
+      setShowSearchDropdown(false)
+      return
+    }
+    const q = value.toLowerCase()
+    const matches = points.filter(
+      (pt) =>
+        (pt.issue && pt.issue.toLowerCase().includes(q)) ||
+        (pt.complaint_id && pt.complaint_id.toLowerCase().includes(q)) ||
+        (pt.location && pt.location.toLowerCase().includes(q))
+    ).slice(0, 8)
+    setSearchResults(matches)
+    setShowSearchDropdown(matches.length > 0)
+  }
+
+  const handleSelectSearchResult = (pt) => {
+    setHighlightedPointId(pt.id)
+    setFlyTo({ lat: pt.latitude, lng: pt.longitude, zoom: 16 })
+    setSearchQuery(pt.issue || pt.complaint_id || '')
+    setShowSearchDropdown(false)
+    // Reset to unclustered view so the individual point is visible
+    if (isClustered) handleReset()
+  }
+
   return (
     <div className="w-full h-full rounded-lg overflow-hidden shadow-lg relative">
+      {/* Overlay: Search bar */}
+      <div className="absolute top-4 left-4 z-[1000] w-80">
+        <div className="relative">
+          <div className="flex items-center bg-zinc-900/90 backdrop-blur-sm border border-zinc-700/60 shadow-lg"
+            style={{ borderRadius: '0.5rem' }}>
+            <Search className="h-4 w-4 text-zinc-400 ml-3 flex-shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => searchResults.length > 0 && setShowSearchDropdown(true)}
+              placeholder="Search by title, ID, or location…"
+              className="w-full bg-transparent text-sm text-zinc-200 placeholder-zinc-500 px-3 py-2.5 outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); setHighlightedPointId(null) }}
+                className="p-1.5 mr-1.5 text-zinc-500 hover:text-white transition"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {showSearchDropdown && (
+            <div className="absolute top-full mt-1 w-full bg-zinc-900/95 backdrop-blur-sm border border-zinc-700/60 shadow-xl overflow-hidden"
+              style={{ borderRadius: '0.5rem' }}>
+              {searchResults.map((pt) => (
+                <button
+                  key={pt.id}
+                  onClick={() => handleSelectSearchResult(pt)}
+                  className="w-full text-left px-3 py-2.5 hover:bg-zinc-800 transition flex items-start gap-2 border-b border-zinc-800 last:border-0"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-indigo-400 mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-zinc-200 truncate">{pt.issue || 'Untitled'}</p>
+                    <p className="text-[10px] text-zinc-500 font-mono">{pt.complaint_id || pt.id} {pt.location ? `· ${pt.location}` : ''}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Overlay: AI Analyze button */}
       <div className="absolute top-4 right-4 z-[1000] flex items-center gap-2">
         {isClustered && (
@@ -337,17 +662,18 @@ const AdminMumbaiMap = () => {
         {/* ── Unclustered view: individual dots ────────────────────────────── */}
         {!isClustered &&
           points.map((pt) => {
+            const isHighlighted = pt.id === highlightedPointId
             const color = dotColor(pt.priority)
             return (
               <CircleMarker
                 key={pt.id}
                 center={[pt.latitude, pt.longitude]}
-                radius={6}
+                radius={isHighlighted ? 12 : 6}
                 pathOptions={{
-                  color: color.stroke,
-                  fillColor: color.fill,
-                  fillOpacity: 0.85,
-                  weight: 2,
+                  color: isHighlighted ? '#facc15' : color.stroke,
+                  fillColor: isHighlighted ? '#facc15' : color.fill,
+                  fillOpacity: isHighlighted ? 1 : 0.85,
+                  weight: isHighlighted ? 3 : 2,
                 }}
               >
                 <Popup>
@@ -475,6 +801,8 @@ const AdminMumbaiMap = () => {
           <ClusterModal
             cluster={selectedCluster}
             onClose={() => setSelectedCluster(null)}
+            segregationCache={segregationCache}
+            setSegregationCache={setSegregationCache}
           />
         )}
       </AnimatePresence>

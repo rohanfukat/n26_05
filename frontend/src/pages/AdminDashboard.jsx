@@ -137,14 +137,14 @@ export default function AdminDashboard() {
     if (editPriority !== (selectedComplaint.priority || '')) payload.priority = editPriority
     if (editStatus !== (selectedComplaint.status || '')) payload.status = editStatus
     if (editDept !== (selectedComplaint.dept_allocated || '')) payload.dept_allocated = editDept
-    if (Object.keys(payload).length === 0) { setUpdating(false); return }
+    if (Object.keys(payload).length === 0) { setUpdating(false); setSelectedComplaint(null); return }
     const updated = await updateComplaint(selectedComplaint.id, payload)
     if (updated) {
-      setSelectedComplaint(updated)
       fetchGrievanceLogs()
       fetchStatistics()
     }
     setUpdating(false)
+    setSelectedComplaint(null)
   }
 
   const ADMIN_TABS = [
@@ -549,7 +549,7 @@ export default function AdminDashboard() {
               {/* Modal Body */}
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="grid gap-6 lg:grid-cols-2">
-                  {/* Left column — read-only info */}
+                  {/* Left column — read-only info + Category, Priority, Status */}
                   <div className="space-y-4">
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500">Issue</p>
@@ -597,15 +597,12 @@ export default function AdminDashboard() {
                         <p className="mt-1 text-sm text-zinc-300 font-mono">{selectedComplaint.latitude}, {selectedComplaint.longitude}</p>
                       </div>
                     )}
-                  </div>
 
-                  {/* Right column — editable fields */}
-                  <div className="space-y-5">
                     {/* Category */}
                     <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Category</p>
                       <div className="flex flex-wrap gap-2">
-                        {['Water', 'Roads', 'Sanitation', 'Power', 'Infrastructure', 'Environment', 'General'].map((cat) => (
+                        {['Water', 'Road', 'Garbage', 'Electricity', 'Traffic','Drainage','Infrastructure', 'Environment', 'General'].map((cat) => (
                           <button
                             key={cat}
                             type="button"
@@ -663,7 +660,10 @@ export default function AdminDashboard() {
                         ))}
                       </div>
                     </div>
+                  </div>
 
+                  {/* Right column — Department, Timestamps, Actions */}
+                  <div className="space-y-5">
                     {/* Department Allocated */}
                     <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Department Allocated</p>
@@ -712,9 +712,14 @@ export default function AdminDashboard() {
 
                     {/* Action buttons */}
                     <div className="flex gap-3">
-                      <Button className="flex-1" onClick={handleUpdateGrievance} isLoading={updating}>
-                        Save Changes
-                      </Button>
+                      {(editCategory !== (selectedComplaint.category || '') ||
+                        editPriority !== (selectedComplaint.priority || '') ||
+                        editStatus !== (selectedComplaint.status || '') ||
+                        editDept !== (selectedComplaint.dept_allocated || '')) && (
+                          <Button className="flex-1" onClick={handleUpdateGrievance} isLoading={updating}>
+                            Save Changes
+                          </Button>
+                        )}
                       {editStatus !== 'resolved' && (
                         <Button variant="secondary" className="flex-1" onClick={handleResolve} isLoading={updating}>
                           Mark Resolved

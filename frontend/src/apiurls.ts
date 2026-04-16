@@ -43,6 +43,15 @@ export const GRIEVANCE_URLS = {
     /** POST   – AI-cluster nearby grievances using DBSCAN (admin only) */
     CLUSTER: `${API_BASE_URL}/grievances/cluster`,
 
+    /** POST   – AI-segregate grievances within a cluster (admin only) */
+    SEGREGATE: `${API_BASE_URL}/grievances/segregate`,
+
+    /** PATCH  – Bulk update status for a segregated parent group (admin only) */
+    SEGREGATE_UPDATE_STATUS: `${API_BASE_URL}/grievances/segregate/update-status`,
+
+    /** POST   – Unlink a child grievance from its parent group (admin only) */
+    SEGREGATE_UNLINK: `${API_BASE_URL}/grievances/segregate/unlink`,
+
     /** GET    – Get nearby grievances by lat/lng (authenticated user) */
     NEARBY: `${API_BASE_URL}/grievances/nearby`,
 

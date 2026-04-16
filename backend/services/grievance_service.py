@@ -6,9 +6,32 @@ Provides:
 """
 
 import uuid
+import asyncio
 from sqlalchemy.orm import Session as DBSession
 from models.grievance import UserSession, Grievance
-from utils.classifier import classify_grievance
+from classifier import classify_complaint
+from cleaner import clean_text
+
+
+def classify_grievance(issue: str, description: str):
+    """Synchronous wrapper that calls classify_complaint and returns (category, priority, dept_allocated)."""
+    combined = f"{issue} {description}".strip()
+    cleaned = clean_text(combined)
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                result = pool.submit(asyncio.run, classify_complaint(cleaned, combined)).result()
+        else:
+            result = loop.run_until_complete(classify_complaint(cleaned, combined))
+    except RuntimeError:
+        result = asyncio.run(classify_complaint(cleaned, combined))
+
+    category = result.get("category", "other")
+    priority = result.get("severity", "medium")
+    dept_allocated = result.get("department", "General Administration")
+    return category, priority, dept_allocated
 
 
 def save_grievance(user_session: UserSession, db: DBSession) -> Grievance:

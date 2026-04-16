@@ -107,6 +107,44 @@ export const apiClusterGrievances = async (epsKm = 1.5, minSamples = 2) => {
 };
 
 /**
+ * AI-segregate grievances: deduplicate & group similar ones (admin only)
+ * @param {string[]} grievanceIds - list of grievance UUID strings
+ */
+export const apiSegregateGrievances = async (grievanceIds) => {
+  return request(() =>
+    axiosInstance.post(GRIEVANCE_URLS.SEGREGATE, {
+      grievance_ids: grievanceIds,
+    }),
+  );
+};
+
+/**
+ * Bulk update status for a segregated parent group (admin only)
+ * @param {string[]} grievanceIds - all child IDs in the parent group
+ * @param {string} status - new status: pending | in_progress | resolved
+ */
+export const apiSegregateUpdateStatus = async (grievanceIds, status) => {
+  return request(() =>
+    axiosInstance.patch(GRIEVANCE_URLS.SEGREGATE_UPDATE_STATUS, {
+      grievance_ids: grievanceIds,
+      status,
+    }),
+  );
+};
+
+/**
+ * Unlink a child grievance from its parent group (admin only)
+ * @param {string} grievanceId - the child grievance ID to unlink
+ */
+export const apiSegregateUnlink = async (grievanceId) => {
+  return request(() =>
+    axiosInstance.post(GRIEVANCE_URLS.SEGREGATE_UNLINK, {
+      grievance_id: grievanceId,
+    }),
+  );
+};
+
+/**
  * Get grievance logs — grievances with source = api | whatsapp (admin only)
  */
 export const apiGetGrievanceLogs = async () => {

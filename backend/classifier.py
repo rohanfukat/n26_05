@@ -8,8 +8,9 @@ import numpy as np
 from datetime import datetime, timedelta
 from PIL import Image
 import google.generativeai as genai
+import os
 
-genai.configure(api_key="AIzaSyDCJJqv2q_-YZrMvyffeZFxmURt73l5mn8")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ================= TIMEOUTS =================
 # Adjusted for Gemini 2.5 Flash Lite (2/10 RPM, 354/250K TPM)
@@ -369,10 +370,51 @@ def compare_analyses(text_result, image_result):
     aligned_fields = []
     conflicts = []
 
-    # CATEGORY (80)
-    if text_result.get("category") == image_result.get("category"):
-        score += 80
-        aligned_fields.append("category")
+    # CATEGORY (80) — fuzzy match: exact, substring, or keyword overlap
+    text_cat = (text_result.get("category") or "").strip().lower()
+    image_cat = (image_result.get("category") or "").strip().lower()
+
+    # Collect tag sets early (needed for cross-check below)
+    text_tags = set(t.lower() for t in text_result.get("tags", []))
+    image_tags = set(t.lower() for t in image_result.get("tags", []))
+
+    if text_cat and image_cat:
+        if text_cat == image_cat:
+            score += 80
+            aligned_fields.append("category")
+        elif text_cat in image_cat or image_cat in text_cat:
+            # substring match (e.g. "tree" in "tree cutting")
+            score += 70
+            aligned_fields.append("category (partial)")
+        else:
+            # keyword overlap between category words
+            text_words = set(text_cat.replace("-", " ").replace("_", " ").split())
+            image_words = set(image_cat.replace("-", " ").replace("_", " ").split())
+            common = text_words & image_words
+            if common:
+                score += 60
+                aligned_fields.append("category (keyword overlap)")
+            else:
+                # Cross-check: does the image category appear in text tags or vice versa?
+                image_cat_words = image_words
+                text_cat_words = text_words
+                # Check if image category (or its words) overlap with text tags
+                image_cat_in_text_tags = any(
+                    w in tag for w in image_cat_words for tag in text_tags
+                ) or any(
+                    image_cat in tag or tag in image_cat for tag in text_tags
+                )
+                # Check if text category (or its words) overlap with image tags
+                text_cat_in_image_tags = any(
+                    w in tag for w in text_cat_words for tag in image_tags
+                ) or any(
+                    text_cat in tag or tag in text_cat for tag in image_tags
+                )
+                if image_cat_in_text_tags or text_cat_in_image_tags:
+                    score += 50
+                    aligned_fields.append("category (cross-tag match)")
+                else:
+                    conflicts.append("category mismatch")
     else:
         conflicts.append("category mismatch")
 
@@ -381,17 +423,14 @@ def compare_analyses(text_result, image_result):
         score += 10
         aligned_fields.append("severity")
 
-    # TAGS (10)
-    text_tags = set(text_result.get("tags", []))
-    image_tags = set(image_result.get("tags", []))
-
+    # TAGS (10) — already computed above, reuse text_tags & image_tags
     if text_tags & image_tags:
         score += 10
         aligned_fields.append("tags")
 
-    if score >= 70:
+    if score >= 50:
         status = "matched"
-    elif score >= 50:
+    elif score >= 30:
         status = "unclear"
     else:
         status = "mismatched"

@@ -148,7 +148,9 @@ export default function UserAuth() {
       if (!formData.phone) newErrors.phone = 'Phone number is required'
       if (formData.phone.length < 10) newErrors.phone = 'Phone number must be at least 10 digits'
       if (!formData.password) newErrors.password = 'Password is required'
-      if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters'
+      else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters'
+      else if (!/[A-Z]/.test(formData.password)) newErrors.password = 'Password must contain at least one uppercase letter'
+      else if (!/[a-z]/.test(formData.password)) newErrors.password = 'Password must contain at least one lowercase letter'
       if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match'
       if (!formData.city) newErrors.city = 'City is required'
       if (!formData.pinCode) newErrors.pinCode = 'PIN code is required'
@@ -195,8 +197,15 @@ export default function UserAuth() {
           }))
         }
       } else {
-        toast.error(result.error || 'Something went wrong.')
-        setErrors({ form: result.error })
+        const errMsg = typeof result.error === 'string'
+          ? result.error
+          : result.error?.detail
+            ? (Array.isArray(result.error.detail)
+              ? result.error.detail.map(e => e.msg).join(', ')
+              : result.error.detail)
+            : 'Something went wrong.'
+        toast.error(errMsg)
+        setErrors({ form: errMsg })
       }
     } finally {
       setIsLoading(false)
@@ -224,12 +233,13 @@ export default function UserAuth() {
     <PageLayout showNav={false}>
       <ParticleField />
       {/* Radial glow matching Welcome page */}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
+      <div style={{
+        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
         background: 'radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255,255,255,0.04) 0%, transparent 70%)'
       }} />
       <div className="relative z-10 px-4 py-10 flex justify-center">
         <motion.div
-          className="w-full max-w-md"
+          className={`w-full ${mode === 'register' ? 'max-w-2xl' : 'max-w-md'}`}
           variants={containerVariants}
           initial="hidden"
           animate="visible"
@@ -248,33 +258,6 @@ export default function UserAuth() {
             </motion.div>
 
             {/* Toggle Tabs */}
-            <motion.div
-              variants={itemVariants}
-              className="flex gap-2 mb-8 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg"
-            >
-              {['login', 'register'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => {
-                    setMode(tab)
-                    setErrors({})
-                    clearError()
-                  }}
-                  className="flex-1 py-2 px-4 rounded-md font-semibold transition-all duration-300 relative"
-                >
-                  {mode === tab && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute inset-0 bg-white dark:bg-slate-800 rounded-md"
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    />
-                  )}
-                  <span className="relative z-10 text-slate-700 dark:text-slate-300">
-                    {tab === 'login' ? 'Login' : 'Register'}
-                  </span>
-                </button>
-              ))}
-            </motion.div>
 
             {/* Form */}
             <motion.form
@@ -311,23 +294,6 @@ export default function UserAuth() {
                       icon={Lock}
                       error={errors.password}
                     />
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="rememberMe"
-                          checked={formData.rememberMe}
-                          onChange={handleChange}
-                          className="rounded"
-                        />
-                        <span className="text-sm text-slate-600 dark:text-slate-400">
-                          Remember me
-                        </span>
-                      </label>
-                      <a href="#" className="text-sm text-blue-500 hover:text-blue-600">
-                        Forgot password?
-                      </a>
-                    </div>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -336,7 +302,7 @@ export default function UserAuth() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.3 }}
-                    className="space-y-4"
+                    className="grid grid-cols-2 gap-4"
                   >
                     <Input
                       label="Full Name"
@@ -393,16 +359,18 @@ export default function UserAuth() {
                       icon={Lock}
                       error={errors.password}
                     />
-                    <Input
-                      label="Confirm Password"
-                      name="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      placeholder="Confirm your password"
-                      icon={Lock}
-                      error={errors.confirmPassword}
-                    />
+                    <div className="col-span-2">
+                      <Input
+                        label="Confirm Password"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Confirm your password"
+                        icon={Lock}
+                        error={errors.confirmPassword}
+                      />
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -420,25 +388,18 @@ export default function UserAuth() {
               </motion.div>
             </motion.form>
 
-            {/* Divider */}
-            <motion.div variants={itemVariants} className="my-6 flex items-center gap-4">
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-              <span className="text-sm text-slate-500">Or continue with</span>
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-            </motion.div>
+            {/* Switch mode link */}
+            <motion.p variants={itemVariants} className="text-center text-sm text-slate-600 dark:text-slate-400 mt-6">
+              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <button
+                type="button"
+                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErrors({}); clearError() }}
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {mode === 'login' ? 'Register' : 'Login'}
+              </button>
+            </motion.p>
 
-            {/* Social buttons */}
-            <motion.div variants={itemVariants} className="flex gap-4">
-              {['Google', 'GitHub'].map(provider => (
-                <button
-                  key={provider}
-                  type="button"
-                  className="flex-1 py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
-                >
-                  {provider}
-                </button>
-              ))}
-            </motion.div>
           </Card>
         </motion.div>
       </div>

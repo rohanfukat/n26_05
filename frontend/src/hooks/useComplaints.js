@@ -65,14 +65,18 @@ export const useComplaints = () => {
 
       if (response.success) {
         setComplaints((prev) => [...prev, response.data]);
-        return response.data;
+        return { success: true, data: response.data };
       }
 
-      setError(response.error || "Failed to create complaint");
-      return null;
+      const errorMsg = response.error || "Failed to create complaint";
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
     } catch (err) {
       setError(err.message || "Failed to create complaint");
-      return null;
+      return {
+        success: false,
+        error: err.message || "Failed to create complaint",
+      };
     } finally {
       setLoading(false);
     }
