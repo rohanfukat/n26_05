@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 import re
 
 
@@ -113,6 +113,8 @@ class GrievanceResponse(BaseModel):
     source: Optional[str] = None
     before_photo: Optional[str] = None
     after_photo: Optional[str] = None
+    upvotes: int = 0
+    upvoted_by: List[str] = []
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

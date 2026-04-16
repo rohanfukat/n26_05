@@ -1,124 +1,89 @@
-﻿import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronUp, X, MapPin, Calendar, Heart } from 'lucide-react'
+import { ChevronDown, ChevronUp, X, MapPin, Navigation, ThumbsUp } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useUser } from '../context/UserContext'
 import { getPriorityBadge } from '../utils/priorityCalculation'
-import { apiGetNeighborhoodComplaints } from '../services/api'
-
-// ─── Dummy / Mock data (replace with live API when ready) ─────────────────
-const MOCK_COMPLAINTS = [
-  {
-    id: 'N001', title: 'Broken streetlight on MG Road', category: 'infrastructure',
-    priority: 'high', status: 'pending', citizenName: 'Priya S.',
-    createdAt: new Date('2026-03-10'),
-    description: 'Streetlight near the MG Road junction has been broken for over 3 weeks now, causing safety hazards for pedestrians and vehicles after dark. Multiple residents have already complained to the local ward office.',
-    imageUrl: null, pinCode: '400001',
-  },
-  {
-    id: 'N002', title: 'Overflowing garbage bin near park', category: 'sanitation',
-    priority: 'critical', status: 'in_progress', citizenName: 'Rahul M.',
-    createdAt: new Date('2026-03-15'),
-    description: 'The municipal garbage bin near Shivaji Park has been overflowing for the past week. The waste spills onto the pavement creating an unhygienic environment and a foul smell.',
-    imageUrl: null, pinCode: '400028',
-  },
-  {
-    id: 'N003', title: 'Pothole on main road causes accidents', category: 'roads',
-    priority: 'high', status: 'resolved', citizenName: 'Anjali K.',
-    createdAt: new Date('2026-02-28'),
-    description: 'A large pothole on the main road near the central market has already caused 2 bike accidents. Despite multiple complaints to the PWD department, the pothole remains unfilled.',
-    imageUrl: null, pinCode: '400001',
-  },
-  {
-    id: 'N004', title: 'Water pipeline burst causing wastage', category: 'water',
-    priority: 'critical', status: 'in_progress', citizenName: 'Vikram T.',
-    createdAt: new Date('2026-03-20'),
-    description: 'A water pipeline burst on Linking Road has been causing massive water wastage for 5 consecutive days. Gallons of water are lost daily while the surrounding area faces supply shortages.',
-    imageUrl: null, pinCode: '400050',
-  },
-  {
-    id: 'N005', title: 'No dustbin near bus stop', category: 'sanitation',
-    priority: 'medium', status: 'pending', citizenName: 'Meena R.',
-    createdAt: new Date('2026-04-01'),
-    description: 'The bus stop on Station Road has no dustbin within 50 metres, leading to widespread littering. Commuters leave waste on the footpath as there is no designated disposal spot.',
-    imageUrl: null, pinCode: '400012',
-  },
-  {
-    id: 'N006', title: 'Park benches damaged and unsafe', category: 'infrastructure',
-    priority: 'low', status: 'resolved', citizenName: 'Suresh P.',
-    createdAt: new Date('2026-03-05'),
-    description: 'Several benches in the municipal park are broken with exposed metal edges posing injury risks to children and elderly visitors. Maintenance has not been done for over a year.',
-    imageUrl: null, pinCode: '400016',
-  },
-  {
-    id: 'N007', title: 'Construction noise past midnight', category: 'noise',
-    priority: 'medium', status: 'pending', citizenName: 'Kavya D.',
-    createdAt: new Date('2026-04-08'),
-    description: 'Construction work at the new building on Turner Road continues past midnight every night, violating municipal noise bylaws. Residents in 4 adjoining buildings are unable to sleep.',
-    imageUrl: null, pinCode: '400036',
-  },
-  {
-    id: 'N008', title: 'Blocked storm drain causes flooding', category: 'water',
-    priority: 'high', status: 'pending', citizenName: 'Arun B.',
-    createdAt: new Date('2026-04-10'),
-    description: 'The storm drain at the junction of SV Road and Hill Road is completely blocked with debris, causing street flooding every time it rains, making the road impassable for vehicles.',
-    imageUrl: null, pinCode: '400064',
-  },
-  {
-    id: 'N009', title: 'Stray dogs near school gates', category: 'animals',
-    priority: 'high', status: 'pending', citizenName: 'Pooja N.',
-    createdAt: new Date('2026-04-12'),
-    description: 'A pack of stray dogs has been aggressive near the school gate on Peddar Road. Three children have been chased and one was bitten last week. Parents are afraid to drop children to school.',
-    imageUrl: null, pinCode: '400026',
-  },
-  {
-    id: 'N010', title: 'Illegal hawkers blocking footpath', category: 'roads',
-    priority: 'medium', status: 'in_progress', citizenName: 'Sanjay V.',
-    createdAt: new Date('2026-04-05'),
-    description: 'Unauthorised hawkers have set up permanent stalls on the footpath of FC Road, completely blocking pedestrian movement and forcing pedestrians onto the road, risking accidents.',
-    imageUrl: null, pinCode: '400007',
-  },
-  {
-    id: 'N011', title: 'Sewage overflow on residential lane', category: 'sanitation',
-    priority: 'critical', status: 'pending', citizenName: 'Rekha G.',
-    createdAt: new Date('2026-04-14'),
-    description: 'Raw sewage has been overflowing into the residential lane behind Parel station for 3 days. The stench is unbearable and residents fear disease outbreak in the densely populated area.',
-    imageUrl: null, pinCode: '400012',
-  },
-  {
-    id: 'N012', title: 'Street signage missing on major junction', category: 'infrastructure',
-    priority: 'medium', status: 'resolved', citizenName: 'Dilip M.',
-    createdAt: new Date('2026-03-28'),
-    description: 'Traffic direction signs at the Goregaon link road junction have been missing for 2 months, causing frequent wrong-way driving incidents and traffic confusion during peak hours.',
-    imageUrl: null, pinCode: '400063',
-  },
-]
+import { apiGetNeighborhoodComplaints, apiUpvoteGrievance } from '../services/api'
 
 const STATUS_LABEL = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Resolved' }
 
 export default function NeighborhoodComplaints() {
   const { user } = useUser()
-  const [complaints, setComplaints] = useState(MOCK_COMPLAINTS)
-  const [loading, setLoading] = useState(false)
+  const [complaints, setComplaints] = useState([])
+  const [loading, setLoading] = useState(true)
   const [selectedComplaint, setSelectedComplaint] = useState(null)
-  const [likes, setLikes] = useState(() =>
-    Object.fromEntries(MOCK_COMPLAINTS.map(c => [c.id, Math.floor(Math.random() * 40) + 2]))
-  )
-  const [liked, setLiked] = useState(new Set())
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
+  const [userLocation, setUserLocation] = useState(null)
+  const [locationError, setLocationError] = useState(null)
+  const [radiusKm, setRadiusKm] = useState(5)
+  const [upvoting, setUpvoting] = useState(null)
 
+  // Get user's current location
   useEffect(() => {
-    const pin = user?.pinCode
-    if (!pin) return
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.')
+      setLoading(false)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+        setLocationError(null)
+      },
+      () => {
+        setLocationError('Unable to get your location. Please allow location access.')
+        setLoading(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }, [])
+
+  // Fetch nearby complaints when location or radius changes
+  const fetchNearby = useCallback(async () => {
+    if (!userLocation) return
     setLoading(true)
-    apiGetNeighborhoodComplaints(pin)
-      .then(data => { if (data?.length) setComplaints(data) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [user?.pinCode])
+    try {
+      const res = await apiGetNeighborhoodComplaints(userLocation.latitude, userLocation.longitude, radiusKm)
+      if (res.success && res.data?.length) {
+        setComplaints(res.data)
+      } else {
+        setComplaints([])
+      }
+    } catch {
+      setComplaints([])
+    } finally {
+      setLoading(false)
+    }
+  }, [userLocation, radiusKm])
+
+  useEffect(() => { fetchNearby() }, [fetchNearby])
+
+  // Handle upvote
+  const handleUpvote = async (grievanceId) => {
+    setUpvoting(grievanceId)
+    try {
+      const res = await apiUpvoteGrievance(grievanceId)
+      if (res.success) {
+        const updated = res.data
+        setComplaints(prev => prev.map(c =>
+          (c.id === updated.id || c.complaint_id === updated.complaint_id)
+            ? { ...c, upvotes: updated.upvotes, upvoted_by: updated.upvoted_by, priority: updated.priority }
+            : c
+        ))
+        if (selectedComplaint && (selectedComplaint.id === updated.id || selectedComplaint.complaint_id === updated.complaint_id)) {
+          setSelectedComplaint(prev => ({ ...prev, upvotes: updated.upvotes, upvoted_by: updated.upvoted_by, priority: updated.priority }))
+        }
+      }
+    } catch { /* ignore */ }
+    setUpvoting(null)
+  }
+
+  const userId = user?.id || user?.user_id || ''
+  const hasUpvoted = (c) => (c.upvoted_by || []).includes(userId)
 
   const categories = ['all', ...Array.from(new Set(complaints.map(c => c.category))).sort()]
   const filtered = activeCategory === 'all' ? complaints : complaints.filter(c => c.category === activeCategory)
@@ -132,10 +97,38 @@ export default function NeighborhoodComplaints() {
           <h1 className="text-2xl font-bold text-white">Neighborhood Complaints</h1>
           <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5" />
-            {user?.pinCode ? `PIN ${user.pinCode}` : 'Nearby area'}
+            {userLocation
+              ? `${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}`
+              : 'Detecting location…'}
             <span className="text-zinc-700">·</span>
-            {complaints.length} complaints total
+            {complaints.length} complaints nearby
           </p>
+        </div>
+
+        {/* Location error */}
+        {locationError && (
+          <div className="mb-5 p-4 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 text-sm flex items-center gap-2">
+            <Navigation className="h-4 w-4" />
+            {locationError}
+          </div>
+        )}
+
+        {/* Radius selector */}
+        <div className="mb-5 flex items-center gap-3">
+          <span className="text-xs text-zinc-400">Radius:</span>
+          {[2, 5, 10, 25].map(r => (
+            <button
+              key={r}
+              onClick={() => setRadiusKm(r)}
+              style={{ borderRadius: '0.4rem' }}
+              className={`px-3 py-1.5 text-xs font-medium border transition-all duration-150 ${radiusKm === r
+                ? 'bg-zinc-700 text-white border-zinc-500'
+                : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50 hover:bg-zinc-700/60 hover:text-zinc-200'
+                }`}
+            >
+              {r} km
+            </button>
+          ))}
         </div>
 
         {/* ── Category-wise breakdown dropdown ─────────────────────────── */}
@@ -178,11 +171,10 @@ export default function NeighborhoodComplaints() {
                         key={cat}
                         onClick={() => { setActiveCategory(cat); setCategoryOpen(false) }}
                         style={{ borderRadius: '0.4rem' }}
-                        className={`px-3 py-1.5 text-xs font-medium transition-all duration-150 border capitalize ${
-                          isActive
-                            ? 'bg-zinc-700 text-white border-zinc-500'
-                            : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50 hover:bg-zinc-700/60 hover:text-zinc-200'
-                        }`}
+                        className={`px-3 py-1.5 text-xs font-medium transition-all duration-150 border capitalize ${isActive
+                          ? 'bg-zinc-700 text-white border-zinc-500'
+                          : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50 hover:bg-zinc-700/60 hover:text-zinc-200'
+                          }`}
                       >
                         {cat} <span className="ml-1 opacity-60">{count}</span>
                       </button>
@@ -227,13 +219,11 @@ export default function NeighborhoodComplaints() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
               >
-                <Card className="flex flex-col h-64 overflow-hidden hover:border-zinc-500/70 hover:bg-zinc-800/70 transition-all duration-150">
+                <Card className="flex flex-col h-72 overflow-hidden hover:border-zinc-500/70 hover:bg-zinc-800/70 transition-all duration-150">
                   {/* Image area */}
-                  <div
-                    className="flex-shrink-0 h-24 bg-zinc-800 flex items-center justify-center border-b border-zinc-700/50 overflow-hidden relative"
-                  >
-                    {c.imageUrl ? (
-                      <img src={c.imageUrl} alt={c.title} className="w-full h-full object-cover" />
+                  <div className="flex-shrink-0 h-24 bg-zinc-800 flex items-center justify-center border-b border-zinc-700/50 overflow-hidden relative">
+                    {(c.before_photo || c.imageUrl) ? (
+                      <img src={c.before_photo || c.imageUrl} alt={c.issue || c.title} className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center gap-1 text-zinc-600">
                         <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -250,29 +240,44 @@ export default function NeighborhoodComplaints() {
 
                   {/* Content */}
                   <div className="flex flex-col flex-1 p-4 min-h-0">
-                    <p className="text-sm font-semibold text-white leading-tight line-clamp-2 mb-1">{c.title}</p>
+                    <p className="text-sm font-semibold text-white leading-tight line-clamp-2 mb-1">{c.issue || c.title}</p>
                     <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2 flex-1 mb-3">{c.description}</p>
                     <div className="flex items-center justify-between mt-auto">
                       <div className="flex items-center gap-2 text-[10px] text-zinc-600">
                         <span>{getPriorityBadge(c.priority)}</span>
                         <span className="capitalize">{STATUS_LABEL[c.status]}</span>
                       </div>
-                      <button
-                        onClick={() => setSelectedComplaint(c)}
-                        style={{ borderRadius: '0.4rem' }}
-                        className="text-xs px-3 py-1 bg-zinc-800 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors duration-150"
-                      >
-                        Learn more
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {/* Upvote button */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleUpvote(c.id || c.complaint_id) }}
+                          disabled={upvoting === (c.id || c.complaint_id)}
+                          style={{ borderRadius: '0.4rem' }}
+                          className={`flex items-center gap-1 text-xs px-2 py-1 border transition-all duration-150 ${hasUpvoted(c)
+                            ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
+                            : 'bg-zinc-800 border-zinc-700/60 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                            }`}
+                        >
+                          <ThumbsUp className="h-3 w-3" fill={hasUpvoted(c) ? 'currentColor' : 'none'} />
+                          <span>{c.upvotes || 0}</span>
+                        </button>
+                        <button
+                          onClick={() => setSelectedComplaint(c)}
+                          style={{ borderRadius: '0.4rem' }}
+                          className="text-xs px-3 py-1 bg-zinc-800 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors duration-150"
+                        >
+                          Learn more
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </Card>
               </motion.div>
             ))}
 
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !loading && (
               <div className="col-span-3 py-20 text-center text-zinc-500 text-sm">
-                No complaints found in this category.
+                {userLocation ? 'No complaints found nearby. Try increasing the radius.' : 'Waiting for location access…'}
               </div>
             )}
           </div>
@@ -299,9 +304,9 @@ export default function NeighborhoodComplaints() {
               className="w-full max-w-xl max-h-[85vh] overflow-y-auto bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)]"
             >
               {/* Image */}
-              {selectedComplaint.imageUrl ? (
+              {(selectedComplaint.before_photo || selectedComplaint.imageUrl) ? (
                 <div className="h-48 overflow-hidden border-b border-zinc-800">
-                  <img src={selectedComplaint.imageUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={selectedComplaint.before_photo || selectedComplaint.imageUrl} alt="" className="w-full h-full object-cover" />
                 </div>
               ) : (
                 <div className="h-32 bg-zinc-800 flex items-center justify-center border-b border-zinc-800 text-zinc-600">
@@ -315,7 +320,7 @@ export default function NeighborhoodComplaints() {
               <div className="flex items-start justify-between p-5 border-b border-zinc-800">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1 capitalize">{selectedComplaint.category}</p>
-                  <h2 className="text-base font-bold text-white leading-tight">{selectedComplaint.title}</h2>
+                  <h2 className="text-base font-bold text-white leading-tight">{selectedComplaint.issue || selectedComplaint.title}</h2>
                 </div>
                 <button
                   onClick={() => setSelectedComplaint(null)}
@@ -329,12 +334,19 @@ export default function NeighborhoodComplaints() {
               <div className="p-5 space-y-4">
                 <p className="text-sm text-zinc-400 leading-relaxed">{selectedComplaint.description}</p>
 
+                {selectedComplaint.location && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {selectedComplaint.location}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'Status',   val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
+                    { label: 'Status', val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
                     { label: 'Priority', val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
-                    { label: 'Filed by', val: selectedComplaint.citizenName || '—' },
-                    { label: 'Date',     val: selectedComplaint.createdAt ? new Date(selectedComplaint.createdAt).toLocaleDateString() : '—' },
+                    { label: 'Upvotes', val: `👍 ${selectedComplaint.upvotes || 0}` },
+                    { label: 'Date', val: selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : (selectedComplaint.createdAt ? new Date(selectedComplaint.createdAt).toLocaleDateString() : '—') },
                   ].map(({ label, val }) => (
                     <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">{label}</p>
@@ -343,35 +355,22 @@ export default function NeighborhoodComplaints() {
                   ))}
                 </div>
 
-                {/* Like button */}
+                {/* Upvote button */}
                 <button
-                  onClick={() => {
-                    const id = selectedComplaint.id
-                    setLiked(prev => {
-                      const next = new Set(prev)
-                      if (next.has(id)) {
-                        next.delete(id)
-                        setLikes(l => ({ ...l, [id]: l[id] - 1 }))
-                      } else {
-                        next.add(id)
-                        setLikes(l => ({ ...l, [id]: l[id] + 1 }))
-                      }
-                      return next
-                    })
-                  }}
+                  onClick={() => handleUpvote(selectedComplaint.id || selectedComplaint.complaint_id)}
+                  disabled={upvoting === (selectedComplaint.id || selectedComplaint.complaint_id)}
                   style={{ borderRadius: '0.4rem' }}
-                  className={`w-full flex items-center justify-center gap-2 py-2.5 border transition-all duration-150 text-sm font-medium ${
-                    liked.has(selectedComplaint.id)
-                      ? 'bg-zinc-700 border-zinc-500 text-white'
-                      : 'bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:bg-zinc-700/60 hover:text-white'
-                  }`}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 border transition-all duration-150 text-sm font-medium ${hasUpvoted(selectedComplaint)
+                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
+                    : 'bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:bg-zinc-700/60 hover:text-white'
+                    }`}
                 >
-                  <Heart
+                  <ThumbsUp
                     className="h-4 w-4 transition-all duration-150"
-                    fill={liked.has(selectedComplaint.id) ? 'currentColor' : 'none'}
+                    fill={hasUpvoted(selectedComplaint) ? 'currentColor' : 'none'}
                   />
-                  {liked.has(selectedComplaint.id) ? 'Liked' : 'Like this complaint'}
-                  <span className="text-zinc-500 font-normal text-xs ml-1">{likes[selectedComplaint.id] ?? 0}</span>
+                  {hasUpvoted(selectedComplaint) ? 'Upvoted' : 'Upvote this complaint'}
+                  <span className="text-zinc-500 font-normal text-xs ml-1">{selectedComplaint.upvotes || 0}</span>
                 </button>
 
                 <Button variant="secondary" onClick={() => setSelectedComplaint(null)} className="w-full">

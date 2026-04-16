@@ -4,8 +4,8 @@ SQLAlchemy models for:
   - Grievance    → stores finalised complaints
 """
 
-from sqlalchemy import Column, String, DateTime, Text, Float
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, Text, Float, Integer
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
 from database import Base
 import uuid
@@ -69,6 +69,10 @@ class Grievance(Base):
 
     status = Column(String, nullable=True, default="pending")    # pending | in-progress | resolved
     source = Column(String, nullable=True, default="whatsapp")   # whatsapp | api
+
+    # Upvote tracking
+    upvotes = Column(Integer, nullable=False, default=0)
+    upvoted_by = Column(ARRAY(String), nullable=False, default=[])
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

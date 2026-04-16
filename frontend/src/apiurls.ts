@@ -42,6 +42,12 @@ export const GRIEVANCE_URLS = {
 
     /** POST   – AI-cluster nearby grievances using DBSCAN (admin only) */
     CLUSTER: `${API_BASE_URL}/grievances/cluster`,
+
+    /** GET    – Get nearby grievances by lat/lng (authenticated user) */
+    NEARBY: `${API_BASE_URL}/grievances/nearby`,
+
+    /** POST   – Upvote a grievance (authenticated user) */
+    UPVOTE: (id: string) => `${API_BASE_URL}/grievances/${id}/upvote`,
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ from models.schemas import GrievanceUpdateRequest, GrievanceResponse
 from utils.auth import decode_access_token
 from utils.classifier import classify_grievance
 from utils.cloudinary import upload_image
+from utils.whatsapp import send_whatsapp_message
 from classifier import analyze_and_compare
 from cleaner import clean_text
 
@@ -587,6 +588,126 @@ def get_user_stats(
 
 
 # ─────────────────────────────────────────
+#  GET /grievances/nearby  –  Location-based neighborhood
+# ─────────────────────────────────────────
+
+class NearbyRequest(BaseModel):
+    latitude: float
+    longitude: float
+    radius_km: float = 5.0   # default 5 km radius
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """Return distance in km between two lat/lng points."""
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) ** 2)
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+@router.get(
+    "/nearby",
+    response_model=List[GrievanceResponse],
+    summary="Get grievances near a lat/lng within a radius (authenticated user)",
+)
+def get_nearby_grievances(
+    latitude: float = 0.0,
+    longitude: float = 0.0,
+    radius_km: float = 5.0,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns grievances within `radius_km` of the given latitude/longitude.
+    Requires a valid JWT (any authenticated user).
+    """
+    _get_token_payload(authorization)
+
+    # Rough bounding-box filter first (for DB performance)
+    delta_lat = radius_km / 111.0
+    delta_lng = radius_km / (111.0 * max(math.cos(math.radians(latitude)), 0.01))
+
+    rows = (
+        db.query(Grievance)
+        .filter(
+            Grievance.latitude.isnot(None),
+            Grievance.longitude.isnot(None),
+            Grievance.latitude.between(latitude - delta_lat, latitude + delta_lat),
+            Grievance.longitude.between(longitude - delta_lng, longitude + delta_lng),
+        )
+        .order_by(Grievance.created_at.desc())
+        .all()
+    )
+
+    # Fine filter with haversine
+    nearby = [
+        g for g in rows
+        if _haversine_km(latitude, longitude, g.latitude, g.longitude) <= radius_km
+    ]
+
+    return [_to_response(g) for g in nearby]
+
+
+# ─────────────────────────────────────────
+#  POST /grievances/{id}/upvote  –  Upvote a grievance
+# ─────────────────────────────────────────
+
+@router.post(
+    "/{grievance_id}/upvote",
+    response_model=GrievanceResponse,
+    summary="Upvote a grievance (authenticated user)",
+)
+def upvote_grievance(
+    grievance_id: str,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    """
+    Toggle upvote on a grievance. If user already upvoted, remove the upvote.
+    Upvotes increase the priority weight of the grievance.
+    """
+    token_data = _get_token_payload(authorization)
+    user_id: str = token_data.get("sub")
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token missing user identifier.")
+
+    grievance = db.query(Grievance).filter(
+        or_(
+            Grievance.id == grievance_id,
+            Grievance.complaint_id == grievance_id,
+        )
+    ).first()
+
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found.")
+
+    upvoted_by = list(grievance.upvoted_by or [])
+
+    if user_id in upvoted_by:
+        upvoted_by.remove(user_id)
+    else:
+        upvoted_by.append(user_id)
+
+    grievance.upvoted_by = upvoted_by
+    grievance.upvotes = len(upvoted_by)
+
+    # Auto-escalate priority based on upvote count
+    if grievance.upvotes >= 20 and grievance.priority not in ("critical",):
+        grievance.priority = "critical"
+    elif grievance.upvotes >= 10 and grievance.priority not in ("critical", "high"):
+        grievance.priority = "high"
+
+    db.commit()
+    db.refresh(grievance)
+
+    return _to_response(grievance)
+
+
+# ─────────────────────────────────────────
 #  GET /grievances  –  List all (admin)
 # ─────────────────────────────────────────
 
@@ -656,6 +777,42 @@ def update_grievance(
     db.commit()
     db.refresh(grievance)
 
+    # ── Send WhatsApp notification if status changed ─────────────────────────
+    if "status" in update_data:
+        new_status = update_data["status"]
+        status_labels = {
+            "pending": "moved to Pending",
+            "in_progress": "now In Progress",
+            "resolved": "Resolved",
+        }
+        status_text = status_labels.get(new_status, new_status)
+        complaint_label = grievance.complaint_id or str(grievance.id)
+        message = (
+            f"Hello! Your complaint ({complaint_label}) has been {status_text}. "
+            f"Thank you for your patience."
+        )
+
+        phone_number: Optional[str] = None
+
+        if grievance.source == "whatsapp" and grievance.identity:
+            # identity is the phone number itself
+            phone_number = grievance.identity
+        elif grievance.identity:
+            # identity is a user_id — look up mobile_number from users table
+            user = db.query(User).filter(User.id == grievance.identity).first()
+            if user and user.mobile_number:
+                phone_number = user.mobile_number
+
+        if phone_number:
+            # Ensure E.164 format: prepend country code 91 if missing
+            phone_number = phone_number.lstrip("+").strip()
+            if not phone_number.startswith("91"):
+                phone_number = f"91{phone_number}"
+            try:
+                send_whatsapp_message(phone_number, message)
+            except Exception as exc:
+                print(f"[WhatsApp] Failed to notify {phone_number}: {exc}")
+
     return _to_response(grievance)
 
 
@@ -679,6 +836,8 @@ def _to_response(g: Grievance) -> GrievanceResponse:
         source=g.source,
         before_photo=g.before_photo,
         after_photo=g.after_photo,
+        upvotes=g.upvotes or 0,
+        upvoted_by=g.upvoted_by or [],
         created_at=str(g.created_at) if g.created_at else None,
         updated_at=str(g.updated_at) if g.updated_at else None,
     )

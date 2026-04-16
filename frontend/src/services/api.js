@@ -172,15 +172,22 @@ export const apiGetCitizenComplaints = async (citizenEmail) => {
   return { success: true, data: response.data.map(normalizeComplaint) };
 };
 
-// Fetch all complaints for a given pin code / neighborhood
-// Backend should accept GET /api/complaints?pinCode=<pinCode>
-export const apiGetNeighborhoodComplaints = async (pinCode) => {
-  const query = new URLSearchParams();
-  if (pinCode) query.append("pinCode", pinCode);
-  const response = await request(`/complaints?${query.toString()}`);
-  if (!response.success) return response;
+// Fetch nearby complaints based on latitude/longitude
+export const apiGetNeighborhoodComplaints = async (
+  latitude,
+  longitude,
+  radiusKm = 5,
+) => {
+  return request(() =>
+    axiosInstance.get(GRIEVANCE_URLS.NEARBY, {
+      params: { latitude, longitude, radius_km: radiusKm },
+    }),
+  );
+};
 
-  return { success: true, data: response.data.map(normalizeComplaint) };
+// Upvote/toggle-upvote a grievance
+export const apiUpvoteGrievance = async (grievanceId) => {
+  return request(() => axiosInstance.post(GRIEVANCE_URLS.UPVOTE(grievanceId)));
 };
 
 export const apiGetComplaintTimeline = async (complaintId) => {
