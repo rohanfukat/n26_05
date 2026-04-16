@@ -187,7 +187,7 @@ def get_grievance_logs(
         .all()
     )
 
-    return [_to_response(g) for g in rows]
+    return [_to_response(g, db) for g in rows]
 
 
 # ─────────────────────────────────────────
@@ -866,7 +866,24 @@ def get_department_grievances(
     child_map = {}
     if all_child_ids:
         children = db.query(Grievance).filter(Grievance.id.in_(all_child_ids)).all()
+        # Pre-fetch user info for API-source children
+        user_ids = [str(c.identity) for c in children if c.source != "whatsapp" and c.identity]
+        user_lookup = {}
+        if user_ids:
+            users = db.query(User).filter(User.id.in_(user_ids)).all()
+            for u in users:
+                user_lookup[str(u.id)] = u
         for c in children:
+            u_name = None
+            u_phone = None
+            if c.identity:
+                if c.source == "whatsapp":
+                    u_phone = c.identity
+                else:
+                    matched_user = user_lookup.get(str(c.identity))
+                    if matched_user:
+                        u_name = matched_user.full_name
+                        u_phone = matched_user.mobile_number
             child_map[str(c.id)] = {
                 "id": str(c.id),
                 "complaint_id": c.complaint_id,
@@ -881,6 +898,8 @@ def get_department_grievances(
                 "source": c.source,
                 "before_photo": c.before_photo,
                 "after_photo": c.after_photo,
+                "user_name": u_name,
+                "user_phone": u_phone,
                 "created_at": str(c.created_at) if c.created_at else None,
             }
 
@@ -1067,15 +1086,11 @@ async def create_grievance(
                 detail=str(exc),
             )
 
-    # ── Auto-classify if category not supplied ────────────────────────────────
-    resolved_category = category
-    priority = "medium"
-    dept_allocated = "General Administration (BMC)"
-    if not resolved_category:
-        resolved_category, priority, dept_allocated = classify_grievance(
-            issue=issue or "",
-            description=description or "",
-        )
+    # ── Always auto-classify using Gemini AI ─────────────────────────────────
+    resolved_category, priority, dept_allocated = classify_grievance(
+        issue=issue or "",
+        description=description or "",
+    )
 
     grievance = Grievance(
         complaint_id=_generate_complaint_id(),
@@ -1319,12 +1334,18 @@ def update_grievance(
     """
     Partially update a grievance record.
 
-    - Requires a valid JWT with `role == "admin"`.
+    - Requires a valid JWT with `role == "admin"` or `role == "officer"`.
+    - Officers can only update the `status` field.
     - Only fields explicitly provided in the request body are updated.
     - `grievance_id` may be either the UUID `id` or the human-readable `complaint_id`.
     """
     token_data = _get_token_payload(authorization)
-    _require_admin(token_data)
+    role = token_data.get("role")
+    if role not in (UserRole.admin.value, UserRole.officer.value):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or officer access required.",
+        )
 
     # Support lookup by either UUID id or complaint_id (e.g. "GRV-ABC123")
     grievance = (
@@ -1340,6 +1361,13 @@ def update_grievance(
 
     # Apply only the fields that were actually sent (exclude_unset)
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Officers can only update status
+    if role == UserRole.officer.value:
+        update_data = {k: v for k, v in update_data.items() if k == "status"}
+        if not update_data:
+            raise HTTPException(status_code=403, detail="Officers can only update the status field.")
+
     for field, value in update_data.items():
         setattr(grievance, field, value)
 
@@ -1389,7 +1417,17 @@ def update_grievance(
 #  Internal serialiser
 # ─────────────────────────────────────────
 
-def _to_response(g: Grievance) -> GrievanceResponse:
+def _to_response(g: Grievance, db: Session = None) -> GrievanceResponse:
+    user_name = None
+    user_phone = None
+    if db and g.identity:
+        if g.source == "whatsapp":
+            user_phone = g.identity
+        else:
+            user = db.query(User).filter(User.id == g.identity).first()
+            if user:
+                user_name = user.full_name
+                user_phone = user.mobile_number
     return GrievanceResponse(
         id=str(g.id),
         complaint_id=g.complaint_id,
@@ -1408,6 +1446,8 @@ def _to_response(g: Grievance) -> GrievanceResponse:
         upvotes=g.upvotes or 0,
         upvoted_by=g.upvoted_by or [],
         dept_allocated=g.dept_allocated,
+        user_name=user_name,
+        user_phone=user_phone,
         created_at=str(g.created_at) if g.created_at else None,
         updated_at=str(g.updated_at) if g.updated_at else None,
     )

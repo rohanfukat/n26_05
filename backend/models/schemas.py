@@ -118,6 +118,8 @@ class GrievanceResponse(BaseModel):
     upvotes: int = 0
     upvoted_by: List[str] = []
     dept_allocated: Optional[str] = None
+    user_name: Optional[str] = None
+    user_phone: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

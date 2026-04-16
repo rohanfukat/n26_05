@@ -69,10 +69,26 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
 
                 for message in messages:
                     msg_type = message.get("type")
+                    from_number: str = message.get("from", "")
+
+                    # ── Handle location messages ──────────────────────────
+                    if msg_type == "location":
+                        loc = message.get("location", {})
+                        lat = loc.get("latitude")
+                        lng = loc.get("longitude")
+                        addr = loc.get("address", "") or loc.get("name", "")
+                        reply = handle_message(
+                            phone=from_number,
+                            text=addr or f"{lat}, {lng}",
+                            db=db,
+                            location_data={"latitude": lat, "longitude": lng, "address": addr},
+                        )
+                        if reply:
+                            send_whatsapp_message(to=from_number, message=reply)
+                        continue
 
                     # ── Only handle plain text messages ───────────────────
                     if msg_type != "text":
-                        from_number = message.get("from", "")
                         send_whatsapp_message(
                             from_number,
                             "Sorry, I can only process text messages right now. "
@@ -80,7 +96,6 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
                         )
                         continue
 
-                    from_number: str = message.get("from", "")
                     text: str = message.get("text", {}).get("body", "").strip()
 
                     if not from_number or not text:

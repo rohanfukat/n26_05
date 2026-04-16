@@ -57,4 +57,5 @@ def reset_session(phone: str, db: Session) -> UserSession:
         issue=None,
         location=None,
         description=None,
+        category=None,
     )

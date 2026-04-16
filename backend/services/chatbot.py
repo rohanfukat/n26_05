@@ -11,12 +11,72 @@ webhook route. It:
   6. Returns the reply string to send back via WhatsApp
 """
 
+import os
 import re
 from collections import deque
 from datetime import datetime, timezone
+import google.generativeai as genai
 from sqlalchemy.orm import Session as DBSession
 from services.session_service import get_or_create_session, update_session, reset_session
 from services.grievance_service import save_grievance
+
+# ── Gemini complaint validator ────────────────────────────────────────────────
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+_VALIDATOR_MODEL = genai.GenerativeModel(
+    model_name="gemini-2.5-flash-lite",
+    generation_config={"temperature": 0.0, "max_output_tokens": 50},
+)
+
+VALID_CATEGORIES = ['Water', 'Road', 'Garbage', 'Electricity', 'Traffic', 'Drainage', 'Infrastructure', 'Environment', 'General']
+
+_VALIDATION_PROMPT = (
+    "You are a complaint validator and categorizer for a Government Grievance Portal.\n\n"
+    "Given the following text, do TWO things:\n"
+    "1. Determine if it is a genuine civic complaint.\n"
+    "2. If valid, assign it to exactly ONE of these categories: "
+    "Water, Road, Garbage, Electricity, Traffic, Drainage, Infrastructure, Environment, General.\n\n"
+    "Reply in this exact format (nothing else):\n"
+    "VALID:<Category>   (e.g. VALID:Road)\n"
+    "or\n"
+    "INVALID\n\n"
+    "Category guidelines:\n"
+    "- Water: water supply, pipeline leak, contamination, bore well, water tanker\n"
+    "- Road: pothole, broken road, road repair, speed bump, footpath\n"
+    "- Garbage: waste collection, dumping, sanitation, cleanliness\n"
+    "- Electricity: streetlight, power cut, transformer, electric pole, wiring\n"
+    "- Traffic: signal, parking, congestion, road signs, zebra crossing\n"
+    "- Drainage: sewage, gutter, flooding, waterlogging, manhole\n"
+    "- Infrastructure: bridge, building, public toilet, bus stop, park, playground\n"
+    "- Environment: pollution, noise, tree cutting, air quality, illegal construction\n"
+    "- General: anything civic that doesn't fit above categories\n\n"
+    "Text: \"{text}\"\n\n"
+    "Answer:"
+)
+
+
+def _is_valid_complaint(text: str) -> tuple[bool, str]:
+    """
+    Use Gemini to check if the text is a genuine civic complaint and categorize it.
+    Returns (is_valid, category). Category is 'General' by default.
+    """
+    try:
+        response = _VALIDATOR_MODEL.generate_content(_VALIDATION_PROMPT.format(text=text))
+        result = response.text.strip()
+        upper = result.upper()
+
+        if upper.startswith("VALID"):
+            # Parse category from "VALID:Road" format
+            parts = result.split(":", 1)
+            if len(parts) == 2:
+                cat = parts[1].strip().title()
+                if cat in VALID_CATEGORIES:
+                    return True, cat
+            return True, "General"
+
+        return False, "General"
+    except Exception as e:
+        print(f"[Chatbot] Gemini validation failed: {e}, allowing complaint through")
+        return True, "General"  # fail-open
 
 
 # ── Greeting triggers ─────────────────────────────────────────────────────────
@@ -206,7 +266,7 @@ def _parse_latlng(text: str):
     return None, None
 
 
-def handle_message(phone: str, text: str, db: DBSession) -> str | None:
+def handle_message(phone: str, text: str, db: DBSession, location_data: dict = None) -> str | None:
     """
     Process an incoming WhatsApp message and return the appropriate reply.
 
@@ -277,14 +337,56 @@ def handle_message(phone: str, text: str, db: DBSession) -> str | None:
         if _is_gibberish(text_clean):
             return (
                 "❌ That doesn't look like a valid issue.\n\n"
-                "Please describe your problem clearly.\n"
-                "_(Example: There is a broken streetlight near my house)_"
+                "Please describe your problem clearly in detail.\n"
+                "_(Example: There is a broken streetlight near my house on MG Road. "
+                "It has been off for 3 days and the area is very dark at night.)_"
             )
-        update_session(phone, db, issue=text_clean, step="ask_location")
-        return "📍 Please share your location (area / city / pincode)"
+        # Validate with Gemini whether this is a real civic complaint
+        is_valid, category = _is_valid_complaint(text_clean)
+        if not is_valid:
+            return (
+                "🤖 Our AI could not recognise this as a valid civic complaint.\n\n"
+                "Please describe a *government / civic issue* clearly, such as:\n"
+                "• Broken road or pothole\n"
+                "• Water supply problem\n"
+                "• Garbage not collected\n"
+                "• Streetlight not working\n\n"
+                "Try again with more detail. 🙏"
+            )
+        update_session(phone, db, issue=text_clean, description=text_clean, step="ask_location", category=category)
+        return (
+            "📍 Please share your location.\n\n"
+            "You need to send your *WhatsApp location* 📌\n"
+            # "• Or type your *area / city / pincode*"
+        )
 
     # ── Step: ask_location  →  user is providing the location ────────────────
     if step == "ask_location":
+        # Handle WhatsApp shared location (lat/lng from location message)
+        if location_data:
+            lat = location_data.get("latitude")
+            lng = location_data.get("longitude")
+            addr = location_data.get("address", "")
+            location_text = addr if addr else f"{lat}, {lng}"
+            update_session(
+                phone, db,
+                location=location_text,
+                latitude=lat,
+                longitude=lng,
+                step="completed",
+            )
+            # Auto-save grievance
+            session = get_or_create_session(phone, db)
+            grievance = save_grievance(session, db)
+            return (
+                "✅ Your complaint has been registered successfully!\n\n"
+                f"🆔 Complaint ID : *{grievance.complaint_id}*\n"
+                f"📂 Category      : {grievance.category}\n"
+                f"📍 Location      : {location_text}\n"
+                f"📌 Status         : Pending\n\n"
+                "We will resolve your issue soon. Thank you 🙏"
+            )
+
         if not _is_valid_location(text_clean):
             return (
                 "❌ That doesn't look like a valid location.\n\n"
@@ -297,52 +399,19 @@ def handle_message(phone: str, text: str, db: DBSession) -> str | None:
             location=text_clean,
             latitude=lat,
             longitude=lng,
-            step="ask_description",
+            step="completed",
         )
-        return "📝 Please describe your issue briefly"
-
-    # ── Step: ask_description  →  user is providing the description ──────────
-    if step == "ask_description":
-        if _is_gibberish(text_clean):
-            return (
-                "❌ That doesn't look like a valid description.\n\n"
-                "Please describe your issue in a bit more detail.\n"
-                "_(Example: The pothole is very deep and causing accidents)_"
-            )
-        # Reload session to get previously saved issue & location
-        session = update_session(phone, db, description=text_clean, step="confirm")
-        summary = (
-            "📋 *Summary of your complaint:*\n\n"
-            f"🔹 Issue     : {session.issue}\n"
-            f"📍 Location  : {session.location}\n"
-            f"📝 Description: {text_clean}\n\n"
-            "Is this correct? Reply *yes* to submit or *no* to start over."
+        # Auto-save grievance
+        session = get_or_create_session(phone, db)
+        grievance = save_grievance(session, db)
+        return (
+            "✅ Your complaint has been registered successfully!\n\n"
+            f"🆔 Complaint ID : *{grievance.complaint_id}*\n"
+            f"📂 Category      : {grievance.category}\n"
+            f"📍 Location      : {text_clean}\n"
+            f"📌 Status         : Pending\n\n"
+            "We will resolve your issue soon. Thank you 🙏"
         )
-        return summary
-
-    # ── Step: confirm  →  user is confirming or rejecting ────────────────────
-    if step == "confirm":
-        if text_lower in {"yes", "y", "haan", "ha", "correct", "ok", "okay"}:
-            # Save grievance to DB
-            grievance = save_grievance(session, db)
-            update_session(phone, db, step="completed")
-            return (
-                "✅ Your complaint has been registered successfully!\n\n"
-                f"🆔 Complaint ID : *{grievance.complaint_id}*\n"
-                f"📂 Category      : {grievance.category}\n"
-                f"⚡ Priority       : {grievance.priority.capitalize()}\n"
-                f"📌 Status         : Pending\n\n"
-                "We will resolve your issue soon. Thank you 🙏"
-            )
-        elif text_lower in {"no", "n", "nahi", "nope", "wrong"}:
-            reset_session(phone, db)
-            update_session(phone, db, step="ask_issue")
-            return (
-                "🔄 Let's start over.\n\n"
-                "Please tell your issue again"
-            )
-        else:
-            return "Please reply *yes* to confirm or *no* to restart."
 
     # ── Step: completed  →  session already done ─────────────────────────────
     if step == "completed":

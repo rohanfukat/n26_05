@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, TrendingUp, AlertTriangle, BarChart3, Clock, Users, PieChart, Image as ImageIcon, ExternalLink } from 'lucide-react'
+import { Search, TrendingUp, AlertTriangle, BarChart3, Clock, Users, PieChart, Image as ImageIcon, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
@@ -22,7 +22,7 @@ import {
 const PIE_COLORS = ['#f4f4f5', '#71717a', '#3f3f46']
 
 export default function AdminDashboard() {
-  const { complaints, grievanceLogs, fetchComplaints, fetchGrievanceLogs, updateComplaint } = useComplaints()
+  const { complaints, grievanceLogs, loading, logsLoading, fetchComplaints, fetchGrievanceLogs, updateComplaint } = useComplaints()
   const { stats, fetchStatistics } = useDashboard()
   const [activeTab, setActiveTab] = useState('maps')
   const [viewFilter, setViewFilter] = useState('all')
@@ -35,6 +35,10 @@ export default function AdminDashboard() {
   const [editDept, setEditDept] = useState('')
   const [updating, setUpdating] = useState(false)
   const [forwarding, setForwarding] = useState(false)
+  const [logsPage, setLogsPage] = useState(1)
+  const [filterCategory, setFilterCategory] = useState('')
+  const [filterDept, setFilterDept] = useState('')
+  const LOGS_PER_PAGE = 12
 
   useEffect(() => {
     fetchComplaints({ sortBy: 'priority' })
@@ -89,11 +93,27 @@ export default function AdminDashboard() {
     return true
   })
 
-  const visibleLogs = grievanceLogs.filter((g) => {
-    if (viewFilter === 'solved') return g.status === 'resolved'
-    if (viewFilter === 'unsolved') return g.status !== 'resolved'
-    return true
-  })
+  const visibleLogs = grievanceLogs
+    .filter((g) => {
+      if (viewFilter === 'solved') return g.status === 'resolved'
+      if (viewFilter === 'unsolved') return g.status !== 'resolved'
+      return true
+    })
+    .filter((g) => {
+      if (filterCategory && (g.category || '').toLowerCase() !== filterCategory.toLowerCase()) return false
+      if (filterDept && (g.dept_allocated || '') !== filterDept) return false
+      return true
+    })
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+
+  const totalLogsPages = Math.max(1, Math.ceil(visibleLogs.length / LOGS_PER_PAGE))
+  const paginatedLogs = visibleLogs.slice((logsPage - 1) * LOGS_PER_PAGE, logsPage * LOGS_PER_PAGE)
+
+  // Reset page when filters change
+  useEffect(() => { setLogsPage(1) }, [viewFilter, filterCategory, filterDept])
+
+  const allCategories = [...new Set(grievanceLogs.map(g => g.category).filter(Boolean))]
+  const allDepartments = [...new Set(grievanceLogs.map(g => g.dept_allocated).filter(Boolean))]
 
   const statCards = [
     { title: 'Total Complaints', value: stats?.totalComplaints ?? 0, icon: Users },
@@ -182,7 +202,7 @@ export default function AdminDashboard() {
   }
 
   const ADMIN_TABS = [
-    { key: 'maps', label: 'Maps' },
+    { key: 'maps', label: 'Map' },
     { key: 'charts', label: 'Graphical Representation' },
     { key: 'logs', label: 'Complaint Logs' },
   ]
@@ -454,56 +474,116 @@ export default function AdminDashboard() {
                           {filter === 'all' ? 'All' : filter === 'solved' ? 'Solved' : 'Unsolved'}
                         </button>
                       ))}
+                      <select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        style={{ borderRadius: '0.4rem' }}
+                        className="px-3 py-1.5 text-xs font-semibold bg-zinc-800/60 text-zinc-300 border border-zinc-700/50 outline-none focus:border-zinc-500 transition"
+                      >
+                        <option value="">All Categories</option>
+                        {allCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <select
+                        value={filterDept}
+                        onChange={(e) => setFilterDept(e.target.value)}
+                        style={{ borderRadius: '0.4rem' }}
+                        className="px-3 py-1.5 text-xs font-semibold bg-zinc-800/60 text-zinc-300 border border-zinc-700/50 outline-none focus:border-zinc-500 transition max-w-[220px] truncate"
+                      >
+                        <option value="">All Departments</option>
+                        {allDepartments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => fetchGrievanceLogs()}
+                        disabled={logsLoading}
+                        style={{ borderRadius: '0.4rem' }}
+                        className="px-3 py-1.5 text-xs font-semibold bg-zinc-800/60 text-zinc-300 border border-zinc-700/50 hover:bg-zinc-700/60 hover:text-white transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${logsLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </button>
                     </div>
                   </div>
 
-                  {visibleLogs.length === 0 ? (
+                  {logsLoading ? (
+                    <div className="py-16 flex flex-col items-center justify-center gap-3">
+                      <Loader2 className="h-8 w-8 text-zinc-500 animate-spin" />
+                      <p className="text-sm text-zinc-500">Loading complaint logs…</p>
+                    </div>
+                  ) : visibleLogs.length === 0 ? (
                     <div className="py-12 text-center text-zinc-500 text-sm">No grievance logs found.</div>
                   ) : (
-                    <table className="w-full text-sm text-left">
-                      <thead className="border-b border-zinc-700/60 bg-zinc-800/40 text-zinc-500 uppercase text-xs tracking-widest">
-                        <tr>
-                          <th className="py-4 px-4">Complaint ID</th>
-                          <th className="py-4 px-4">Issue</th>
-                          <th className="py-4 px-4">Category</th>
-                          <th className="py-4 px-4">Priority</th>
-                          <th className="py-4 px-4">Status</th>
-                          <th className="py-4 px-4">Source</th>
-                          <th className="py-4 px-4">Department</th>
-                          <th className="py-4 px-4">Created</th>
-                          <th className="py-4 px-4 text-center">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleLogs.map((g) => (
-                          <motion.tr
-                            key={g.id}
-                            className="border-b border-zinc-800/60 hover:bg-zinc-800/50 transition-colors"
-                            whileHover={{ backgroundColor: 'rgba(0,0,0,0.03)' }}
+                    <>
+                      <table className="w-full text-sm text-left">
+                        <thead className="border-b border-zinc-700/60 bg-zinc-800/40 text-zinc-500 uppercase text-xs tracking-widest">
+                          <tr>
+                            <th className="py-4 px-4">Complaint ID</th>
+                            <th className="py-4 px-4">Issue</th>
+                            <th className="py-4 px-4">Category</th>
+                            <th className="py-4 px-4">Priority</th>
+                            <th className="py-4 px-4">Status</th>
+                            <th className="py-4 px-4">Source</th>
+                            <th className="py-4 px-4">Department</th>
+                            <th className="py-4 px-4">Created</th>
+                            <th className="py-4 px-4 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedLogs.map((g) => (
+                            <motion.tr
+                              key={g.id}
+                              className="border-b border-zinc-800/60 hover:bg-zinc-800/50 transition-colors"
+                              whileHover={{ backgroundColor: 'rgba(0,0,0,0.03)' }}
+                            >
+                              <td className="py-3 px-4 font-mono text-zinc-400 text-xs">{g.complaint_id || g.id?.slice(0, 8)}</td>
+                              <td className="py-3 px-4 max-w-[260px] truncate text-zinc-200">{g.issue || '—'}</td>
+                              <td className="py-3 px-4 capitalize text-zinc-400">{g.category || '—'}</td>
+                              <td className="py-3 px-4">{getPriorityBadge(g.priority)}</td>
+                              <td className="py-3 px-4">
+                                <span style={{ borderRadius: '0.4rem' }} className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-zinc-700 text-zinc-200 capitalize">
+                                  {(g.status || 'pending').replace('_', ' ')}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span style={{ borderRadius: '0.4rem' }} className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700 capitalize">
+                                  {g.source || '—'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-xs text-zinc-400 max-w-[180px] truncate">{g.dept_allocated || 'Not Assigned'}</td>
+                              <td className="py-3 px-4 text-xs text-zinc-600">{g.created_at ? new Date(g.created_at).toLocaleDateString() : '—'}</td>
+                              <td className="py-3 px-4 text-center">
+                                <Button size="sm" onClick={() => setSelectedComplaint(g)}>View</Button>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {/* Pagination */}
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-800/60">
+                        <p className="text-xs text-zinc-500">
+                          Showing {((logsPage - 1) * LOGS_PER_PAGE) + 1}–{Math.min(logsPage * LOGS_PER_PAGE, visibleLogs.length)} of {visibleLogs.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setLogsPage(p => Math.max(1, p - 1))}
+                            disabled={logsPage === 1}
+                            style={{ borderRadius: '0.4rem' }}
+                            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition border border-zinc-700/50"
                           >
-                            <td className="py-3 px-4 font-mono text-zinc-400 text-xs">{g.complaint_id || g.id?.slice(0, 8)}</td>
-                            <td className="py-3 px-4 max-w-[260px] truncate text-zinc-200">{g.issue || '—'}</td>
-                            <td className="py-3 px-4 capitalize text-zinc-400">{g.category || '—'}</td>
-                            <td className="py-3 px-4">{getPriorityBadge(g.priority)}</td>
-                            <td className="py-3 px-4">
-                              <span style={{ borderRadius: '0.4rem' }} className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-zinc-700 text-zinc-200 capitalize">
-                                {(g.status || 'pending').replace('_', ' ')}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span style={{ borderRadius: '0.4rem' }} className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700 capitalize">
-                                {g.source || '—'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-xs text-zinc-400 max-w-[180px] truncate">{g.dept_allocated || 'Not Assigned'}</td>
-                            <td className="py-3 px-4 text-xs text-zinc-600">{g.created_at ? new Date(g.created_at).toLocaleDateString() : '—'}</td>
-                            <td className="py-3 px-4 text-center">
-                              <Button size="sm" onClick={() => setSelectedComplaint(g)}>View</Button>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <span className="text-xs text-zinc-400 min-w-[60px] text-center">Page {logsPage} / {totalLogsPages}</span>
+                          <button
+                            onClick={() => setLogsPage(p => Math.min(totalLogsPages, p + 1))}
+                            disabled={logsPage === totalLogsPages}
+                            style={{ borderRadius: '0.4rem' }}
+                            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition border border-zinc-700/50"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </Card>
 
@@ -636,7 +716,7 @@ export default function AdminDashboard() {
                     <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Category</p>
                       <div className="flex flex-wrap gap-2">
-                        {['Water', 'Road', 'Garbage', 'Electricity', 'Traffic','Drainage','Infrastructure', 'Environment', 'General'].map((cat) => (
+                        {['Water', 'Road', 'Garbage', 'Electricity', 'Traffic', 'Drainage', 'Infrastructure', 'Environment', 'General'].map((cat) => (
                           <button
                             key={cat}
                             type="button"
@@ -698,6 +778,21 @@ export default function AdminDashboard() {
 
                   {/* Right column — Department, Timestamps, Actions */}
                   <div className="space-y-5">
+                    {/* Complainant Info */}
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Complainant Info</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">Name</span>
+                          <span className="text-sm font-semibold text-zinc-200">{selectedComplaint.user_name || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">Phone</span>
+                          <span className="text-sm font-semibold text-zinc-200">{selectedComplaint.user_phone || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Department Allocated */}
                     <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Department Allocated</p>

@@ -13,6 +13,7 @@ export const useComplaints = () => {
   const [grievanceLogs, setGrievanceLogs] = useState([]);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchComplaints = useCallback(async (filters = {}) => {
@@ -118,7 +119,7 @@ export const useComplaints = () => {
   );
 
   const fetchGrievanceLogs = useCallback(async () => {
-    setLoading(true);
+    setLogsLoading(true);
     setError(null);
 
     try {
@@ -132,7 +133,7 @@ export const useComplaints = () => {
     } catch (err) {
       setError(err.message || "Failed to fetch grievance logs");
     } finally {
-      setLoading(false);
+      setLogsLoading(false);
     }
   }, []);
 
@@ -173,6 +174,7 @@ export const useComplaints = () => {
     grievanceLogs,
     selectedComplaint,
     loading,
+    logsLoading,
     error,
     fetchComplaints,
     fetchComplaintById,

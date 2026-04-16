@@ -264,6 +264,9 @@ async def classify_text_only(cleaned_text: str, raw_text: str):
       "tags": []
     }}
 
+    IMPORTANT: "category" MUST be exactly one of these values: Water, Road, Garbage, Electricity, Traffic, Drainage, Infrastructure, Environment, General.
+    Do NOT use any other category. Pick the closest match from the list above.
+
     Complaint: "{cleaned_text}"
     """
 

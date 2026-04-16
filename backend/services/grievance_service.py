@@ -13,6 +13,9 @@ from classifier import classify_complaint
 from cleaner import clean_text
 
 
+ALLOWED_CATEGORIES = ['Water', 'Road', 'Garbage', 'Electricity', 'Traffic', 'Drainage', 'Infrastructure', 'Environment', 'General']
+
+
 def classify_grievance(issue: str, description: str):
     """Synchronous wrapper that calls classify_complaint and returns (category, priority, dept_allocated)."""
     combined = f"{issue} {description}".strip()
@@ -28,7 +31,12 @@ def classify_grievance(issue: str, description: str):
     except RuntimeError:
         result = asyncio.run(classify_complaint(cleaned, combined))
 
-    category = result.get("category", "other")
+    category = result.get("category", "General")
+    # Ensure category is from the allowed list
+    if category not in ALLOWED_CATEGORIES:
+        category_lower = category.lower()
+        matched = next((c for c in ALLOWED_CATEGORIES if c.lower() == category_lower), None)
+        category = matched if matched else "General"
     priority = result.get("severity", "medium")
     dept_allocated = result.get("department", "General Administration")
     return category, priority, dept_allocated
@@ -47,11 +55,19 @@ def save_grievance(user_session: UserSession, db: DBSession) -> Grievance:
     Returns:
         The newly created Grievance ORM object.
     """
-    # Auto-classify category and priority
-    category, priority, dept_allocated = classify_grievance(
-        issue=user_session.issue or "",
-        description=user_session.description or "",
-    )
+    # Use pre-classified category from session if available, otherwise auto-classify
+    if user_session.category:
+        category = user_session.category
+        # Still classify for priority and department
+        _, priority, dept_allocated = classify_grievance(
+            issue=user_session.issue or "",
+            description=user_session.description or "",
+        )
+    else:
+        category, priority, dept_allocated = classify_grievance(
+            issue=user_session.issue or "",
+            description=user_session.description or "",
+        )
 
     # Generate a short human-readable complaint ID
     short_id = str(uuid.uuid4()).split("-")[0].upper()

@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 // Priority calculation algorithm based on urgency, location impact, and complaint type
 export const calculatePriority = (complaint) => {
@@ -17,10 +17,10 @@ export const calculatePriority = (complaint) => {
   score += timeScore;
 
   // Convert score to priority level
-  if (score >= 80) return "critical";
-  if (score >= 60) return "high";
-  if (score >= 40) return "medium";
-  return "low";
+  if (score >= 80) return 'critical';
+  if (score >= 60) return 'high';
+  if (score >= 40) return 'medium';
+  return 'low';
 };
 
 // Urgency scores for different categories
@@ -42,19 +42,8 @@ const getImpactScore = (complaint) => {
   let score = 0;
 
   // Keywords indicating wider impact
-  const impactKeywords = [
-    "families",
-    "people",
-    "residents",
-    "community",
-    "area",
-    "zone",
-    "sector",
-    "block",
-  ];
-  const matchCount = impactKeywords.filter((word) =>
-    description.includes(word),
-  ).length;
+  const impactKeywords = ['families', 'people', 'residents', 'community', 'area', 'zone', 'sector', 'block'];
+  const matchCount = impactKeywords.filter(word => description.includes(word)).length;
   score += Math.min(matchCount * 5, 20);
 
   // Number mentions (affects how many)
@@ -68,15 +57,8 @@ const getImpactScore = (complaint) => {
   }
 
   // Severity keywords
-  const severityKeywords = [
-    "urgent",
-    "emergency",
-    "critical",
-    "danger",
-    "safety",
-    "health",
-  ];
-  if (severityKeywords.some((word) => description.includes(word))) {
+  const severityKeywords = ['urgent', 'emergency', 'critical', 'danger', 'safety', 'health'];
+  if (severityKeywords.some(word => description.includes(word))) {
     score += 15;
   }
 
@@ -97,52 +79,25 @@ const getTimeScore = (createdAt) => {
 // Get priority color
 export const getPriorityColor = (priority) => {
   const colors = {
-    critical: "#dc2626", // red
-    high: "#ea580c", // orange
-    medium: "#eab308", // yellow
-    low: "#22c55e", // green
+    critical: '#dc2626', // red
+    high: '#ea580c', // orange
+    medium: '#eab308', // yellow
+    low: '#22c55e', // green
   };
-  return colors[priority] || "#6b7280";
+  return colors[priority] || '#6b7280';
 };
 
 // Get priority badge
 export const getPriorityBadge = (priority) => {
   const config = {
-    critical: {
-      label: "Critical",
-      bg: "bg-red-500/20",
-      text: "text-red-400",
-      border: "border-red-500/40",
-    },
-    high: {
-      label: "High",
-      bg: "bg-orange-500/20",
-      text: "text-orange-400",
-      border: "border-orange-500/40",
-    },
-    medium: {
-      label: "Medium",
-      bg: "bg-yellow-500/20",
-      text: "text-yellow-400",
-      border: "border-yellow-500/40",
-    },
-    low: {
-      label: "Low",
-      bg: "bg-green-500/20",
-      text: "text-green-400",
-      border: "border-green-500/40",
-    },
+    critical: { label: 'Critical', bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/40' },
+    high: { label: 'High', bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/40' },
+    medium: { label: 'Medium', bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/40' },
+    low: { label: 'Low', bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/40' },
   };
-  const c = config[priority] || {
-    label: priority || "Unknown",
-    bg: "bg-zinc-500/20",
-    text: "text-zinc-400",
-    border: "border-zinc-500/40",
-  };
+  const c = config[priority] || { label: priority || 'Unknown', bg: 'bg-zinc-500/20', text: 'text-zinc-400', border: 'border-zinc-500/40' };
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded ${c.bg} ${c.text} border ${c.border} capitalize`}
-    >
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded ${c.bg} ${c.text} border ${c.border} capitalize`}>
       {c.label}
     </span>
   );
