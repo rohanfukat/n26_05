@@ -137,10 +137,16 @@ def login(
                 detail="Access denied. This account does not have admin privileges.",
             )
 
-        if login_type == "user" and user.role != UserRole.user:
+        if login_type == "officer" and user.role != UserRole.officer:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please use the admin login as you are an admin.",
+                detail="Access denied. This account does not have officer privileges.",
+            )
+
+        if login_type == "user" and user.role not in (UserRole.user,):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please use the appropriate login portal for your role.",
             )
 
         # 3. Password check
@@ -158,6 +164,7 @@ def login(
                 "role": user.role.value,
                 "city": user.city,
                 "full_name": user.full_name,
+                "department": user.department,
             }
         )
 
@@ -169,6 +176,7 @@ def login(
             email=user.email,
             role=user.role.value,
             city=user.city,
+            department=user.department,
         )
     except HTTPException:
         raise

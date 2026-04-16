@@ -22,7 +22,7 @@ from sqlalchemy import or_, func as sa_func, extract
 from jose import JWTError
 
 from database import get_db
-from models.grievance import Grievance
+from models.grievance import Grievance, DepartmentGrievance
 from models.user import User, UserRole
 from models.schemas import GrievanceUpdateRequest, GrievanceResponse
 from utils.auth import decode_access_token
@@ -470,10 +470,22 @@ def segregate_grievances(
     if not body.grievance_ids:
         return SegregateResponse(groups=[])
 
+    # Get IDs already forwarded to departments — exclude them
+    dept_rows = db.query(DepartmentGrievance.child_grievance_ids).all()
+    allocated_ids = set()
+    for (ids,) in dept_rows:
+        if ids:
+            allocated_ids.update(ids)
+
+    # Filter out already-allocated IDs
+    eligible_ids = [gid for gid in body.grievance_ids if gid not in allocated_ids]
+    if not eligible_ids:
+        return SegregateResponse(groups=[])
+
     # Fetch grievances
     rows = (
         db.query(Grievance)
-        .filter(Grievance.id.in_(body.grievance_ids))
+        .filter(Grievance.id.in_(eligible_ids))
         .all()
     )
     if not rows:
@@ -725,6 +737,244 @@ def unlink_grievance(
         raise HTTPException(status_code=404, detail="Grievance not found")
 
     return {"success": True, "unlinked_id": str(grievance.id)}
+
+
+# ─────────────────────────────────────────
+#  POST /grievances/forward-to-department
+#  Forward a segregated parent group to a department
+# ─────────────────────────────────────────
+
+DEPARTMENTS = [
+    "BMC - Water Supply Department",
+    "BMC - Roads & Infrastructure (PWD)",
+    "BMC - Solid Waste Management",
+    "BMC - Storm Water Drains",
+    "BMC - Public Health Department",
+    "Mumbai Police",
+    "Maharashtra State Electricity Distribution Company (MSEDCL)",
+    "Mumbai Fire Brigade",
+    "Mumbai Metropolitan Region Development Authority (MMRDA)",
+    "Slum Rehabilitation Authority (SRA)",
+    "Maharashtra Pollution Control Board (MPCB)",
+    "General Administration (BMC)",
+]
+
+
+class ForwardToDeptRequest(BaseModel):
+    parent_issue: str
+    category: str
+    priority: str
+    dept_allocated: str
+    child_grievance_ids: List[str]
+
+
+@router.post(
+    "/forward-to-department",
+    summary="Forward a segregated parent group to a department",
+)
+def forward_to_department(
+    body: ForwardToDeptRequest,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    token_data = _get_token_payload(authorization)
+    _require_admin(token_data)
+
+    if body.dept_allocated not in DEPARTMENTS:
+        raise HTTPException(status_code=400, detail="Invalid department")
+
+    if not body.child_grievance_ids:
+        raise HTTPException(status_code=400, detail="No child grievances provided")
+
+    # Check if any child is already forwarded
+    existing = (
+        db.query(DepartmentGrievance)
+        .filter(
+            DepartmentGrievance.child_grievance_ids.overlap(body.child_grievance_ids)
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Some grievances are already forwarded to a department.",
+        )
+
+    dept_grievance = DepartmentGrievance(
+        parent_issue=body.parent_issue,
+        category=body.category,
+        priority=body.priority,
+        status="pending",
+        dept_allocated=body.dept_allocated,
+        child_grievance_ids=body.child_grievance_ids,
+    )
+    db.add(dept_grievance)
+
+    # Update all child grievances status to pending and set dept_allocated
+    children = db.query(Grievance).filter(Grievance.id.in_(body.child_grievance_ids)).all()
+    for g in children:
+        g.status = "pending"
+        g.dept_allocated = body.dept_allocated
+
+    db.commit()
+    db.refresh(dept_grievance)
+
+    return {
+        "success": True,
+        "department_grievance_id": str(dept_grievance.id),
+        "parent_issue": dept_grievance.parent_issue,
+        "dept_allocated": dept_grievance.dept_allocated,
+        "child_count": len(body.child_grievance_ids),
+    }
+
+
+# ─────────────────────────────────────────
+#  GET /grievances/department-grievances
+#  Get grievances assigned to officer's department
+# ─────────────────────────────────────────
+
+@router.get(
+    "/department-grievances",
+    summary="Get department grievances for the logged-in officer",
+)
+def get_department_grievances(
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    token_data = _get_token_payload(authorization)
+    if token_data.get("role") not in ("officer", "admin"):
+        raise HTTPException(status_code=403, detail="Officer or admin access required.")
+
+    query = db.query(DepartmentGrievance)
+
+    # Officers see only their department's grievances
+    if token_data.get("role") == "officer":
+        dept = token_data.get("department")
+        if not dept:
+            raise HTTPException(status_code=403, detail="No department assigned to this officer.")
+        query = query.filter(DepartmentGrievance.dept_allocated == dept)
+
+    rows = query.order_by(DepartmentGrievance.created_at.desc()).all()
+
+    # Collect all child IDs across all rows to fetch in one query
+    all_child_ids = set()
+    for r in rows:
+        if r.child_grievance_ids:
+            all_child_ids.update(r.child_grievance_ids)
+
+    # Fetch all child grievances in one go
+    child_map = {}
+    if all_child_ids:
+        children = db.query(Grievance).filter(Grievance.id.in_(all_child_ids)).all()
+        for c in children:
+            child_map[str(c.id)] = {
+                "id": str(c.id),
+                "complaint_id": c.complaint_id,
+                "issue": c.issue,
+                "description": c.description,
+                "location": c.location,
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "category": c.category,
+                "priority": c.priority,
+                "status": c.status,
+                "source": c.source,
+                "before_photo": c.before_photo,
+                "after_photo": c.after_photo,
+                "created_at": str(c.created_at) if c.created_at else None,
+            }
+
+    return [
+        {
+            "id": str(r.id),
+            "parent_issue": r.parent_issue,
+            "category": r.category,
+            "priority": r.priority,
+            "status": r.status,
+            "dept_allocated": r.dept_allocated,
+            "child_grievance_ids": r.child_grievance_ids,
+            "children": [child_map.get(cid, {"id": cid}) for cid in (r.child_grievance_ids or [])],
+            "created_at": str(r.created_at) if r.created_at else None,
+            "updated_at": str(r.updated_at) if r.updated_at else None,
+        }
+        for r in rows
+    ]
+
+
+# ─────────────────────────────────────────
+#  PATCH /grievances/department-grievances/{id}/resolve
+#  Officer resolves a department grievance + all child grievances
+# ─────────────────────────────────────────
+
+@router.patch(
+    "/department-grievances/{dept_grievance_id}/resolve",
+    summary="Resolve a department grievance and all its child grievances",
+)
+def resolve_department_grievance(
+    dept_grievance_id: str,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    token_data = _get_token_payload(authorization)
+    if token_data.get("role") not in ("officer", "admin"):
+        raise HTTPException(status_code=403, detail="Officer or admin access required.")
+
+    dept_g = db.query(DepartmentGrievance).filter(
+        DepartmentGrievance.id == dept_grievance_id
+    ).first()
+
+    if not dept_g:
+        raise HTTPException(status_code=404, detail="Department grievance not found.")
+
+    # Officers can only resolve their own department's grievances
+    if token_data.get("role") == "officer":
+        officer_dept = token_data.get("department")
+        if dept_g.dept_allocated != officer_dept:
+            raise HTTPException(status_code=403, detail="You can only resolve your department's grievances.")
+
+    # Update department grievance status
+    dept_g.status = "resolved"
+
+    # Update all child grievances in the grievances table
+    if dept_g.child_grievance_ids:
+        children = db.query(Grievance).filter(
+            Grievance.id.in_(dept_g.child_grievance_ids)
+        ).all()
+        for g in children:
+            g.status = "resolved"
+
+    db.commit()
+
+    return {
+        "success": True,
+        "department_grievance_id": str(dept_g.id),
+        "resolved_children": len(dept_g.child_grievance_ids or []),
+    }
+
+
+# ─────────────────────────────────────────
+#  GET /grievances/allocated-ids
+#  Returns all child grievance IDs already forwarded
+# ─────────────────────────────────────────
+
+@router.get(
+    "/allocated-ids",
+    summary="Get all grievance IDs already forwarded to departments",
+)
+def get_allocated_ids(
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    token_data = _get_token_payload(authorization)
+    _require_admin(token_data)
+
+    rows = db.query(DepartmentGrievance.child_grievance_ids).all()
+    all_ids = set()
+    for (ids,) in rows:
+        if ids:
+            all_ids.update(ids)
+
+    return {"allocated_ids": list(all_ids)}
 
 
 # ─────────────────────────────────────────

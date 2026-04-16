@@ -54,7 +54,7 @@ class RegisterResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    type: Literal["user", "admin"] = "user"   # query distinguishes login type
+    type: Literal["user", "admin", "officer"] = "user"   # query distinguishes login type
 
 
 class LoginResponse(BaseModel):
@@ -65,6 +65,7 @@ class LoginResponse(BaseModel):
     email: str
     role: str
     city: str
+    department: Optional[str] = None
 
 
 # ─────────────────────────────────────────

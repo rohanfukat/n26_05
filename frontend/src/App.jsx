@@ -14,6 +14,8 @@ import ComplaintForm from './pages/ComplaintForm'
 import CitizenDashboard from './pages/CitizenDashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import DepartmentDashboard from './pages/DepartmentDashboard'
+import OfficerAuth from './pages/OfficerAuth'
+import OfficerDashboard from './pages/OfficerDashboard'
 import AnalyticsHotspots from './pages/AnalyticsHotspots'
 import SocialMediaMonitoring from './pages/SocialMediaMonitoring'
 import ComplaintTracking from './pages/ComplaintTracking'
@@ -39,6 +41,7 @@ export default function App() {
                 <Route path="/role-selection" element={<RoleSelection />} />
                 <Route path="/user-auth" element={<UserAuth />} />
                 <Route path="/admin-auth" element={<AdminAuth />} />
+                <Route path="/officer-auth" element={<OfficerAuth />} />
 
                 {/* ── Citizen Protected Routes ───────────────────────────── */}
                 <Route
@@ -88,6 +91,16 @@ export default function App() {
                   element={
                     <ProtectedRoute allowedRoles={['admin']} redirectTo="/admin-auth">
                       <DepartmentDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ── Officer Protected Routes ───────────────────────────── */}
+                <Route
+                  path="/officer-dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['officer']} redirectTo="/officer-auth">
+                      <OfficerDashboard />
                     </ProtectedRoute>
                   }
                 />

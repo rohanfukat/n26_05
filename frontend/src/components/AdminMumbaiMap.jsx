@@ -3,8 +3,8 @@ import { MapContainer, TileLayer, CircleMarker, Circle, Popup, useMap } from 're
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { motion, AnimatePresence } from 'framer-motion'
-import { apiGetMapPoints, apiClusterGrievances, apiSegregateGrievances, apiSegregateUpdateStatus, apiSegregateUnlink } from '../services/api'
-import { Sparkles, X, MapPin, AlertTriangle, Loader2, Search, ChevronDown, ChevronRight, Unlink, CheckCircle2, Clock, Hourglass } from 'lucide-react'
+import { apiGetMapPoints, apiClusterGrievances, apiSegregateGrievances, apiSegregateUpdateStatus, apiSegregateUnlink, apiForwardToDepartment, apiGetAllocatedIds } from '../services/api'
+import { Sparkles, X, MapPin, AlertTriangle, Loader2, Search, ChevronDown, ChevronRight, Unlink, CheckCircle2, Clock, Hourglass, Send } from 'lucide-react'
 
 // Fix default marker icons
 delete L.Icon.Default.prototype._getIconUrl
@@ -54,6 +54,24 @@ function ClusterModal({ cluster, onClose, segregationCache, setSegregationCache 
   const [expandedGroups, setExpandedGroups] = useState(cached?.expandedGroups || {})
   const [updatingStatus, setUpdatingStatus] = useState({})
   const [unlinking, setUnlinking] = useState({})
+  const [forwarding, setForwarding] = useState({})
+  const [selectedDepts, setSelectedDepts] = useState({})
+  const [forwardedGroups, setForwardedGroups] = useState({})
+
+  const DEPARTMENTS = [
+    "BMC - Water Supply Department",
+    "BMC - Roads & Infrastructure (PWD)",
+    "BMC - Solid Waste Management",
+    "BMC - Storm Water Drains",
+    "BMC - Public Health Department",
+    "Mumbai Police",
+    "Maharashtra State Electricity Distribution Company (MSEDCL)",
+    "Mumbai Fire Brigade",
+    "Mumbai Metropolitan Region Development Authority (MMRDA)",
+    "Slum Rehabilitation Authority (SRA)",
+    "Maharashtra Pollution Control Board (MPCB)",
+    "General Administration (BMC)",
+  ]
 
   // Persist to cache whenever groups change
   useEffect(() => {
@@ -159,6 +177,29 @@ function ClusterModal({ cluster, onClose, segregationCache, setSegregationCache 
     if (s === 'resolved') return <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
     if (s === 'in_progress') return <Hourglass className="h-3.5 w-3.5 text-blue-400" />
     return <Clock className="h-3.5 w-3.5 text-yellow-400" />
+  }
+
+  const handleForwardToDept = async (groupIdx) => {
+    const group = groups[groupIdx]
+    const dept = selectedDepts[groupIdx]
+    if (!dept) return
+    setForwarding((prev) => ({ ...prev, [groupIdx]: true }))
+    try {
+      const res = await apiForwardToDepartment({
+        parent_issue: group.parent_issue,
+        category: group.category,
+        priority: group.priority,
+        dept_allocated: dept,
+        child_grievance_ids: group.child_ids,
+      })
+      if (res.success) {
+        setForwardedGroups((prev) => ({ ...prev, [groupIdx]: dept }))
+      }
+    } catch (err) {
+      console.error('Forward to dept failed:', err)
+    } finally {
+      setForwarding((prev) => ({ ...prev, [groupIdx]: false }))
+    }
   }
 
   return (
@@ -279,7 +320,7 @@ function ClusterModal({ cluster, onClose, segregationCache, setSegregationCache 
                         <select
                           value={group.status}
                           onChange={(e) => handleStatusChange(gIdx, e.target.value)}
-                          disabled={updatingStatus[gIdx]}
+                          disabled={updatingStatus[gIdx] || !!forwardedGroups[gIdx]}
                           style={{ borderRadius: '0.3rem' }}
                           className="appearance-none bg-zinc-700 text-xs text-zinc-200 pl-6 pr-6 py-1 border border-zinc-600 cursor-pointer hover:border-zinc-500 transition disabled:opacity-50 disabled:cursor-wait"
                         >
@@ -338,6 +379,45 @@ function ClusterModal({ cluster, onClose, segregationCache, setSegregationCache 
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Forward to Department */}
+                  {expandedGroups[gIdx] && (
+                    <div className="border-t border-zinc-700/40 px-4 py-3 flex items-center gap-2">
+                      {forwardedGroups[gIdx] ? (
+                        <div className="flex items-center gap-2 text-sm text-green-400">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Forwarded to {forwardedGroups[gIdx]}
+                        </div>
+                      ) : (
+                        <>
+                          <select
+                            value={selectedDepts[gIdx] || ''}
+                            onChange={(e) => setSelectedDepts((prev) => ({ ...prev, [gIdx]: e.target.value }))}
+                            style={{ borderRadius: '0.3rem' }}
+                            className="flex-1 appearance-none bg-zinc-700 text-xs text-zinc-200 px-3 py-2 border border-zinc-600 cursor-pointer hover:border-zinc-500 transition"
+                          >
+                            <option value="">Select Department…</option>
+                            {DEPARTMENTS.map((d) => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleForwardToDept(gIdx)}
+                            disabled={!selectedDepts[gIdx] || forwarding[gIdx]}
+                            style={{ borderRadius: '0.3rem' }}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {forwarding[gIdx] ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
+                            )}
+                            Forward
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

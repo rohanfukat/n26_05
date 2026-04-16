@@ -145,6 +145,50 @@ export const apiSegregateUnlink = async (grievanceId) => {
 };
 
 /**
+ * Forward a segregated parent group to a department (admin only)
+ */
+export const apiForwardToDepartment = async ({
+  parent_issue,
+  category,
+  priority,
+  dept_allocated,
+  child_grievance_ids,
+}) => {
+  return request(() =>
+    axiosInstance.post(GRIEVANCE_URLS.FORWARD_TO_DEPT, {
+      parent_issue,
+      category,
+      priority,
+      dept_allocated,
+      child_grievance_ids,
+    }),
+  );
+};
+
+/**
+ * Get all grievance IDs already forwarded to departments (admin only)
+ */
+export const apiGetAllocatedIds = async () => {
+  return request(() => axiosInstance.get(GRIEVANCE_URLS.ALLOCATED_IDS));
+};
+
+/**
+ * Get department grievances for the logged-in officer
+ */
+export const apiGetDepartmentGrievances = async () => {
+  return request(() => axiosInstance.get(GRIEVANCE_URLS.DEPARTMENT_GRIEVANCES));
+};
+
+/**
+ * Resolve a department grievance + all child grievances (officer)
+ */
+export const apiResolveDeptGrievance = async (deptGrievanceId) => {
+  return request(() =>
+    axiosInstance.patch(GRIEVANCE_URLS.RESOLVE_DEPT_GRIEVANCE(deptGrievanceId)),
+  );
+};
+
+/**
  * Get grievance logs — grievances with source = api | whatsapp (admin only)
  */
 export const apiGetGrievanceLogs = async () => {

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Users, Shield } from 'lucide-react'
+import { Users, Shield, Building2 } from 'lucide-react'
 
 // ── Particle Background (copied style) ──
 function ParticleField() {
@@ -75,6 +75,13 @@ export default function RoleSelection() {
       icon: Shield,
       path: '/admin-auth',
     },
+    {
+      id: 'officer',
+      title: 'Department Officer',
+      description: 'View and resolve grievances assigned to your department.',
+      icon: Building2,
+      path: '/officer-auth',
+    },
   ]
 
   return (
@@ -117,7 +124,7 @@ export default function RoleSelection() {
         </p>
 
         {/* Cards */}
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-3 gap-8">
           {roles.map((role) => {
             const Icon = role.icon
             return (

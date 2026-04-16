@@ -37,6 +37,21 @@ class UserSession(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
+class DepartmentGrievance(Base):
+    """Stores parent-level grouped grievances forwarded by admin to a department."""
+
+    __tablename__ = "department_grievances"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    parent_issue = Column(Text, nullable=False)
+    category = Column(String, nullable=True)
+    priority = Column(String, nullable=True, default="medium")
+    status = Column(String, nullable=True, default="pending")
+    dept_allocated = Column(String, nullable=False)
+    child_grievance_ids = Column(ARRAY(String), nullable=False, default=[])
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 class Grievance(Base):
     """Stores a finalised, confirmed grievance complaint."""
 

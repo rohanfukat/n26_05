@@ -52,6 +52,18 @@ export const GRIEVANCE_URLS = {
     /** POST   – Unlink a child grievance from its parent group (admin only) */
     SEGREGATE_UNLINK: `${API_BASE_URL}/grievances/segregate/unlink`,
 
+    /** POST   – Forward a segregated group to a department (admin only) */
+    FORWARD_TO_DEPT: `${API_BASE_URL}/grievances/forward-to-department`,
+
+    /** GET    – Get all allocated grievance IDs (admin only) */
+    ALLOCATED_IDS: `${API_BASE_URL}/grievances/allocated-ids`,
+
+    /** GET    – Get department grievances for officer */
+    DEPARTMENT_GRIEVANCES: `${API_BASE_URL}/grievances/department-grievances`,
+
+    /** PATCH  – Resolve a department grievance (officer) */
+    RESOLVE_DEPT_GRIEVANCE: (id: string) => `${API_BASE_URL}/grievances/department-grievances/${id}/resolve`,
+
     /** GET    – Get nearby grievances by lat/lng (authenticated user) */
     NEARBY: `${API_BASE_URL}/grievances/nearby`,
 
