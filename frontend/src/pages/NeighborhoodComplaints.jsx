@@ -346,6 +346,7 @@ export default function NeighborhoodComplaints() {
                     { label: 'Status', val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
                     { label: 'Priority', val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
                     { label: 'Upvotes', val: `👍 ${selectedComplaint.upvotes || 0}` },
+                    { label: 'Department', val: selectedComplaint.dept_allocated || 'Not Assigned' },
                     { label: 'Date', val: selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : (selectedComplaint.createdAt ? new Date(selectedComplaint.createdAt).toLocaleDateString() : '—') },
                   ].map(({ label, val }) => (
                     <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">

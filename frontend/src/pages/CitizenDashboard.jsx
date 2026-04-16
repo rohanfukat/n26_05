@@ -262,6 +262,7 @@ export default function CitizenDashboard() {
                     { label: 'Status', val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
                     { label: 'Priority', val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
                     { label: 'Category', val: selectedComplaint.category },
+                    { label: 'Department', val: selectedComplaint.dept_allocated || 'Not Assigned' },
                     { label: 'Filed On', val: selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : '—' },
                     { label: 'Location', val: selectedComplaint.location || '—' },
                   ].map(({ label, val }) => (

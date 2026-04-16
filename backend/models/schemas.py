@@ -95,6 +95,7 @@ class GrievanceUpdateRequest(BaseModel):
     status: Optional[str] = None
     before_photo: Optional[str] = None
     after_photo: Optional[str] = None
+    dept_allocated: Optional[str] = None
 
 
 class GrievanceResponse(BaseModel):
@@ -115,6 +116,7 @@ class GrievanceResponse(BaseModel):
     after_photo: Optional[str] = None
     upvotes: int = 0
     upvoted_by: List[str] = []
+    dept_allocated: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

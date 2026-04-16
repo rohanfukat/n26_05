@@ -30,6 +30,7 @@ export default function AdminDashboard() {
   const [editCategory, setEditCategory] = useState('')
   const [editPriority, setEditPriority] = useState('')
   const [editStatus, setEditStatus] = useState('')
+  const [editDept, setEditDept] = useState('')
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function AdminDashboard() {
       setEditCategory(selectedComplaint.category || '')
       setEditPriority(selectedComplaint.priority || '')
       setEditStatus(selectedComplaint.status || '')
+      setEditDept(selectedComplaint.dept_allocated || '')
     }
   }, [selectedComplaint])
 
@@ -134,6 +136,7 @@ export default function AdminDashboard() {
     if (editCategory !== (selectedComplaint.category || '')) payload.category = editCategory
     if (editPriority !== (selectedComplaint.priority || '')) payload.priority = editPriority
     if (editStatus !== (selectedComplaint.status || '')) payload.status = editStatus
+    if (editDept !== (selectedComplaint.dept_allocated || '')) payload.dept_allocated = editDept
     if (Object.keys(payload).length === 0) { setUpdating(false); return }
     const updated = await updateComplaint(selectedComplaint.id, payload)
     if (updated) {
@@ -432,6 +435,7 @@ export default function AdminDashboard() {
                           <th className="py-4 px-4">Priority</th>
                           <th className="py-4 px-4">Status</th>
                           <th className="py-4 px-4">Source</th>
+                          <th className="py-4 px-4">Department</th>
                           <th className="py-4 px-4">Created</th>
                           <th className="py-4 px-4 text-center">Action</th>
                         </tr>
@@ -457,6 +461,7 @@ export default function AdminDashboard() {
                                 {g.source || '—'}
                               </span>
                             </td>
+                            <td className="py-3 px-4 text-xs text-zinc-400 max-w-[180px] truncate">{g.dept_allocated || 'Not Assigned'}</td>
                             <td className="py-3 px-4 text-xs text-zinc-600">{g.created_at ? new Date(g.created_at).toLocaleDateString() : '—'}</td>
                             <td className="py-3 px-4 text-center">
                               <Button size="sm" onClick={() => setSelectedComplaint(g)}>View</Button>
@@ -654,6 +659,40 @@ export default function AdminDashboard() {
                               }`}
                           >
                             {s.replace('_', ' ')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Department Allocated */}
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-5">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Department Allocated</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          'BMC - Water Supply Department',
+                          'BMC - Roads & Infrastructure (PWD)',
+                          'BMC - Solid Waste Management',
+                          'BMC - Storm Water Drains',
+                          'BMC - Public Health Department',
+                          'Mumbai Police',
+                          'Maharashtra State Electricity Distribution Company (MSEDCL)',
+                          'Mumbai Fire Brigade',
+                          'Mumbai Metropolitan Region Development Authority (MMRDA)',
+                          'Slum Rehabilitation Authority (SRA)',
+                          'Maharashtra Pollution Control Board (MPCB)',
+                          'General Administration (BMC)',
+                        ].map((dept) => (
+                          <button
+                            key={dept}
+                            type="button"
+                            onClick={() => setEditDept(dept)}
+                            style={{ borderRadius: '0.4rem' }}
+                            className={`px-3 py-1.5 text-xs font-semibold transition ${editDept === dept
+                              ? 'bg-zinc-600 text-white border border-zinc-400'
+                              : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-200'
+                              }`}
+                          >
+                            {dept}
                           </button>
                         ))}
                       </div>

@@ -503,8 +503,9 @@ async def create_grievance(
     # ── Auto-classify if category not supplied ────────────────────────────────
     resolved_category = category
     priority = "medium"
+    dept_allocated = "General Administration (BMC)"
     if not resolved_category:
-        resolved_category, priority = classify_grievance(
+        resolved_category, priority, dept_allocated = classify_grievance(
             issue=issue or "",
             description=description or "",
         )
@@ -522,6 +523,7 @@ async def create_grievance(
         priority=priority,
         status="pending",
         source="api",
+        dept_allocated=dept_allocated,
     )
 
     db.add(grievance)
@@ -838,6 +840,7 @@ def _to_response(g: Grievance) -> GrievanceResponse:
         after_photo=g.after_photo,
         upvotes=g.upvotes or 0,
         upvoted_by=g.upvoted_by or [],
+        dept_allocated=g.dept_allocated,
         created_at=str(g.created_at) if g.created_at else None,
         updated_at=str(g.updated_at) if g.updated_at else None,
     )

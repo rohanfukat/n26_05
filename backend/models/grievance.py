@@ -69,6 +69,7 @@ class Grievance(Base):
 
     status = Column(String, nullable=True, default="pending")    # pending | in-progress | resolved
     source = Column(String, nullable=True, default="whatsapp")   # whatsapp | api
+    dept_allocated = Column(String, nullable=True, default="General Administration (BMC)")
 
     # Upvote tracking
     upvotes = Column(Integer, nullable=False, default=0)

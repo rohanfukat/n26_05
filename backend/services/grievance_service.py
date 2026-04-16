@@ -25,7 +25,7 @@ def save_grievance(user_session: UserSession, db: DBSession) -> Grievance:
         The newly created Grievance ORM object.
     """
     # Auto-classify category and priority
-    category, priority = classify_grievance(
+    category, priority, dept_allocated = classify_grievance(
         issue=user_session.issue or "",
         description=user_session.description or "",
     )
@@ -46,6 +46,7 @@ def save_grievance(user_session: UserSession, db: DBSession) -> Grievance:
         priority=priority,
         status="pending",
         source="whatsapp",
+        dept_allocated=dept_allocated,
     )
 
     db.add(grievance)
