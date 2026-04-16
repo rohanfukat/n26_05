@@ -61,24 +61,73 @@ export const apiGetComplaintById = async (id) => {
   return { success: true, data: normalizeComplaint(response.data) };
 };
 
-export const apiCreateComplaint = async (complaintData) => {
-  const response = await request("/complaints", {
-    method: "POST",
-    body: JSON.stringify(complaintData),
-  });
-  if (!response.success) return response;
-
-  return { success: true, data: normalizeComplaint(response.data) };
+/**
+ * Create a new grievance via the backend /grievances endpoint
+ * Expects FormData with: issue, description, location, latitude, longitude, before_photo (optional)
+ */
+export const apiCreateComplaint = async (grievanceData) => {
+  return request(() =>
+    axiosInstance.post(GRIEVANCE_URLS.CREATE, grievanceData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
+  );
 };
 
-export const apiUpdateComplaint = async (id, updates) => {
-  const response = await request(`/complaints/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    body: JSON.stringify(updates),
-  });
-  if (!response.success) return response;
+/**
+ * Get user complaint statistics
+ * Returns: { total_complaints, resolved, in_progress, pending, complaints: [] }
+ */
+export const apiGetUserStats = async () => {
+  return request(() => axiosInstance.get(GRIEVANCE_URLS.USER_STATS));
+};
 
-  return { success: true, data: normalizeComplaint(response.data) };
+/**
+ * Get all grievances with lat/lng for map rendering (admin only)
+ * Returns: MapPointResponse[]
+ */
+export const apiGetMapPoints = async () => {
+  return request(() => axiosInstance.get(GRIEVANCE_URLS.MAP_POINTS));
+};
+
+/**
+ * AI-cluster nearby grievances using DBSCAN (admin only)
+ * @param {number} epsKm - radius in km for neighbourhood (default 1.5)
+ * @param {number} minSamples - minimum points to form cluster (default 2)
+ * Returns: { clusters: ClusterItem[], noise: MapPointResponse[] }
+ */
+export const apiClusterGrievances = async (epsKm = 1.5, minSamples = 2) => {
+  return request(() =>
+    axiosInstance.post(GRIEVANCE_URLS.CLUSTER, {
+      eps_km: epsKm,
+      min_samples: minSamples,
+    }),
+  );
+};
+
+/**
+ * Get grievance logs — grievances with source = api | whatsapp (admin only)
+ */
+export const apiGetGrievanceLogs = async () => {
+  return request(() => axiosInstance.get(GRIEVANCE_URLS.LOGS));
+};
+
+/**
+ * Get dashboard analytics — computed from real grievance data (admin only)
+ * Returns: { totalComplaints, resolvedComplaints, inProgressComplaints, pendingComplaints,
+ *            criticalComplaints, byStatus, monthlyData, categoryData, avgResolutionDays,
+ *            sourceBreakdown, priorityBreakdown }
+ */
+export const apiGetDashboardStats = async () => {
+  return request(() => axiosInstance.get(GRIEVANCE_URLS.STATS));
+};
+
+/**
+ * Update a grievance (admin only) via PATCH /grievances/{id}
+ */
+export const apiUpdateComplaint = async (id, updates) => {
+  return request(() => axiosInstance.patch(GRIEVANCE_URLS.UPDATE(id), updates));
 };
 
 export const apiAddUpdate = async (id, message) => {

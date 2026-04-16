@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, Trash2, MapPin } from 'lucide-react'
 
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
@@ -21,10 +21,15 @@ export default function ComplaintForm() {
   const [errors, setErrors] = useState({})
   const [submissionError, setSubmissionError] = useState('')
   const [successData, setSuccessData] = useState(null)
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [locationError, setLocationError] = useState('')
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    location: '',
+    latitude: null,
+    longitude: null,
     citizenName: '',
     citizenEmail: '',
   })
@@ -70,22 +75,62 @@ export default function ComplaintForm() {
       newErrors.description = 'Minimum 20 characters required'
     }
 
+    if (!formData.location.trim()) {
+      newErrors.location = 'Location/Address is required'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  const requestUserLocation = async () => {
+    setLocationError('')
+    setLocationLoading(true)
+
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.')
+      setLocationLoading(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        setFormData(prev => ({
+          ...prev,
+          latitude,
+          longitude,
+        }))
+        setLocationLoading(false)
+      },
+      (error) => {
+        let errorMsg = 'Unable to retrieve your location.'
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location permission denied. Please enable it in your browser settings.'
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location information is unavailable.'
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'Request timed out. Please try again.'
+        }
+        setLocationError(errorMsg)
+        setLocationLoading(false)
+      }
+    )
   }
 
   const handleFileInput = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+    if (file.type.startsWith('image/')) {
       setUploadedFile({
         name: file.name,
         size: (file.size / 1024).toFixed(2),
         type: file.type,
+        file: file, // Store the actual File object
       })
     } else {
-      alert('Only image or PDF files allowed.')
+      alert('Only image files allowed.')
     }
   }
 
@@ -96,21 +141,64 @@ export default function ComplaintForm() {
     if (!validateForm()) return
 
     setSubmissionError('')
+    setLocationError('')
     setIsLoading(true)
 
     try {
-      const complaintData = {
-        title: formData.title,
-        description: formData.description,
-        category: 'other',
-        citizenName: user?.name || 'Anonymous',
-        citizenEmail: user?.email || 'anonymous@example.com',
-        citizenPhone: user?.phone || '',
-        source: 'web',
-        locationType: 'manual',
-        location: '',
-        pinCode: '',
-        attachments: uploadedFile ? [uploadedFile.name] : [],
+      // Request location permission if not already obtained
+      if (formData.latitude === null || formData.longitude === null) {
+        await new Promise((resolve) => {
+          setLocationLoading(true)
+          if (!navigator.geolocation) {
+            setLocationError('Geolocation is not supported.')
+            setLocationLoading(false)
+            resolve()
+            return
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setFormData(prev => ({
+                ...prev,
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              }))
+              setLocationLoading(false)
+              resolve()
+            },
+            (error) => {
+              let errorMsg = 'Unable to retrieve your location.'
+              if (error.code === error.PERMISSION_DENIED) {
+                errorMsg = 'Location permission denied.'
+              } else if (error.code === error.POSITION_UNAVAILABLE) {
+                errorMsg = 'Location information is unavailable.'
+              } else if (error.code === error.TIMEOUT) {
+                errorMsg = 'Request timed out.'
+              }
+              setLocationError(errorMsg)
+              setLocationLoading(false)
+              resolve() // Continue anyway, location is optional
+            }
+          )
+        })
+      }
+
+      // Prepare form data with location info
+      const complaintData = new FormData()
+      complaintData.append('issue', formData.title)
+      complaintData.append('description', formData.description)
+      complaintData.append('location', formData.location)
+
+      if (formData.latitude !== null) {
+        complaintData.append('latitude', formData.latitude)
+      }
+      if (formData.longitude !== null) {
+        complaintData.append('longitude', formData.longitude)
+      }
+
+      // Append file if present
+      if (uploadedFile && uploadedFile.file) {
+        complaintData.append('before_photo', uploadedFile.file)
       }
 
       const result = await createComplaint(complaintData)
@@ -157,6 +245,12 @@ export default function ComplaintForm() {
                 </div>
               )}
 
+              {locationError && !isSuccess && (
+                <div className="mb-4 p-4 rounded-xl bg-yellow-100 text-yellow-700">
+                  {locationError}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-6">
 
                 {/* Title */}
@@ -184,9 +278,43 @@ export default function ComplaintForm() {
                   className="min-h-[180px]"
                 />
 
+                {/* Location/Address */}
+                <Input
+                  label="Location/Address"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  placeholder="Enter your location or address"
+                  error={errors.location}
+                  required
+                />
+
+                {/* Geolocation Button */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Get Your Coordinates
+                  </label>
+                  <Button
+                    type="button"
+                    onClick={requestUserLocation}
+                    isLoading={locationLoading}
+                    className="w-full bg-blue-500 hover:bg-blue-600"
+                  >
+                    <MapPin className="inline mr-2 h-4 w-4" />
+                    {locationLoading
+                      ? 'Getting location...'
+                      : formData.latitude && formData.longitude
+                        ? `✓ Location Set (${formData.latitude.toFixed(4)}, ${formData.longitude.toFixed(4)})`
+                        : 'Enable Location Access'}
+                  </Button>
+                  {locationError && (
+                    <p className="text-sm text-orange-600 dark:text-orange-400">{locationError}</p>
+                  )}
+                </div>
+
                 {/* File Upload (consistent UI) */}
                 <Input
-                  label="Attachment (Optional)"
+                  label="Before Photo (Optional)"
                   type="file"
                   name="file"
                   onChange={handleFileInput}

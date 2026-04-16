@@ -25,8 +25,23 @@ export const GRIEVANCE_URLS = {
     /** GET    – List all grievances, optional query params (admin only) */
     LIST: `${API_BASE_URL}/grievances`,
 
+    /** GET    – Get user complaint statistics (requires JWT) */
+    USER_STATS: `${API_BASE_URL}/grievances/user/stats`,
+
     /** PATCH  – Update a grievance by id (admin only) */
     UPDATE: (id: string) => `${API_BASE_URL}/grievances/${id}`,
+
+    /** GET    – All grievances with lat/lng for map rendering (admin only) */
+    MAP_POINTS: `${API_BASE_URL}/grievances/map-points`,
+
+    /** GET    – Get grievance logs (source = api | whatsapp) for admin dashboard */
+    LOGS: `${API_BASE_URL}/grievances/logs`,
+
+    /** GET    – Dashboard analytics computed from real data (admin only) */
+    STATS: `${API_BASE_URL}/grievances/stats`,
+
+    /** POST   – AI-cluster nearby grievances using DBSCAN (admin only) */
+    CLUSTER: `${API_BASE_URL}/grievances/cluster`,
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────

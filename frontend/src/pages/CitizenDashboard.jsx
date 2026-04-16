@@ -5,7 +5,7 @@ import { Plus, FileText, User, Phone, Mail } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
-import { useComplaints } from '../hooks/useComplaints'
+import { useUserStats } from '../hooks/useUserStats'
 import { useUser } from '../context/UserContext'
 import { getPriorityBadge } from '../utils/priorityCalculation'
 import {
@@ -30,19 +30,20 @@ export default function CitizenDashboard() {
   const navigate = useNavigate()
   const [selectedComplaint, setSelectedComplaint] = useState(null)
   const { user } = useUser()
-  const { complaints, fetchComplaints, loading } = useComplaints()
-  const citizenEmail = user?.email || 'raj@example.com'
+  const { stats, loading, fetchUserStats } = useUserStats()
 
-  useEffect(() => { fetchComplaints() }, [fetchComplaints])
+  useEffect(() => {
+    fetchUserStats()
+  }, [fetchUserStats])
 
-  const myComplaints = complaints.filter(c => {
-    const complaintEmail = c?.citizenEmail || ''
-    const userEmail = citizenEmail || ''
-    return complaintEmail.toLowerCase() === userEmail.toLowerCase()
-  })
+  const myComplaints = stats?.complaints || []
+  const totalComplaints = stats?.total_complaints || 0
+  const resolvedCount = stats?.resolved || 0
+  const inProgressCount = stats?.in_progress || 0
+  const pendingCount = stats?.pending || 0
 
   const STATUS_LABEL = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Resolved' }
-  const STATUS_DOT   = { pending: 'bg-zinc-500', in_progress: 'bg-zinc-300', resolved: 'bg-white' }
+  const STATUS_DOT = { pending: 'bg-zinc-500', in_progress: 'bg-zinc-300', resolved: 'bg-white' }
 
   return (
     <PageLayout>
@@ -63,10 +64,10 @@ export default function CitizenDashboard() {
         {/* Stats row */}
         <div className="px-6 py-3 grid grid-cols-4 gap-3 flex-shrink-0">
           {[
-            { label: 'Total',       val: myComplaints.length },
-            { label: 'Resolved',    val: myComplaints.filter(c => c.status === 'resolved').length },
-            { label: 'In Progress', val: myComplaints.filter(c => c.status === 'in_progress').length },
-            { label: 'Pending',     val: myComplaints.filter(c => c.status === 'pending').length },
+            { label: 'Total', val: totalComplaints },
+            { label: 'Resolved', val: resolvedCount },
+            { label: 'In Progress', val: inProgressCount },
+            { label: 'Pending', val: pendingCount },
           ].map(({ label, val }) => (
             <Card key={label} className="p-3 flex items-center justify-between">
               <span className="text-xs text-zinc-500 font-medium">{label}</span>
@@ -85,9 +86,9 @@ export default function CitizenDashboard() {
             <div className="h-[110px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ReBarChart data={[
-                  { label: 'Filed',    value: myComplaints.length || 8 },
-                  { label: 'Resolved', value: myComplaints.filter(c => c.status === 'resolved').length || 5 },
-                  { label: 'Pending',  value: myComplaints.filter(c => c.status !== 'resolved').length || 3 },
+                  { label: 'Filed', value: totalComplaints || 8 },
+                  { label: 'Resolved', value: resolvedCount || 5 },
+                  { label: 'Pending', value: (totalComplaints - resolvedCount) || 3 },
                 ]}>
                   <XAxis dataKey="label" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} width={20} />
@@ -103,9 +104,9 @@ export default function CitizenDashboard() {
             <h3 className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Resolution Status</h3>
             {(() => {
               const pd = [
-                { name: 'Resolved',    value: myComplaints.filter(c => c.status === 'resolved').length    || 5 },
-                { name: 'In Progress', value: myComplaints.filter(c => c.status === 'in_progress').length || 2 },
-                { name: 'Pending',     value: myComplaints.filter(c => c.status === 'pending').length     || 1 },
+                { name: 'Resolved', value: resolvedCount || 5 },
+                { name: 'In Progress', value: inProgressCount || 2 },
+                { name: 'Pending', value: pendingCount || 1 },
               ]
               return (
                 <>
@@ -140,8 +141,8 @@ export default function CitizenDashboard() {
                 <AreaChart data={DEMO_WEEKLY}>
                   <defs>
                     <linearGradient id="cwa" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#71717a" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#71717a" stopOpacity={0}    />
+                      <stop offset="5%" stopColor="#71717a" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#71717a" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="week" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
@@ -158,8 +159,9 @@ export default function CitizenDashboard() {
         {/* Complaints list — scrollable within fixed height */}
         <div className="flex-1 overflow-y-auto px-6 pb-6" style={{ borderTop: '1px solid #27272a' }}>
           {loading && (
-            <div className="flex items-center justify-center py-10">
-              <div className="h-6 w-6 border-2 border-zinc-600 border-t-zinc-200 rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <div className="h-8 w-8 border-3 border-zinc-600 border-t-zinc-200 rounded-full animate-spin" />
+              <p className="text-sm text-zinc-500 font-medium">Fetching your complaints...</p>
             </div>
           )}
 
@@ -195,8 +197,8 @@ export default function CitizenDashboard() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-white text-sm truncate">{c.title}</p>
-                        <span className="text-xs font-mono text-zinc-600">{c.id}</span>
+                        <p className="font-semibold text-white text-sm truncate">{c.issue || c.title}</p>
+                        <span className="text-xs font-mono text-zinc-600">{c.complaint_id || c.id}</span>
                       </div>
                       <p className="text-xs text-zinc-500 mt-0.5 truncate">{c.description}</p>
                     </div>
@@ -240,8 +242,8 @@ export default function CitizenDashboard() {
               {/* Modal header */}
               <div className="flex items-start justify-between p-6 border-b border-zinc-800 flex-shrink-0">
                 <div>
-                  <h2 className="text-lg font-bold text-white">{selectedComplaint.title}</h2>
-                  <p className="text-xs font-mono text-zinc-500 mt-1">{selectedComplaint.id}</p>
+                  <h2 className="text-lg font-bold text-white">{selectedComplaint.issue || selectedComplaint.title}</h2>
+                  <p className="text-xs font-mono text-zinc-500 mt-1">{selectedComplaint.complaint_id || selectedComplaint.id}</p>
                 </div>
                 <button
                   onClick={() => setSelectedComplaint(null)}
@@ -257,12 +259,11 @@ export default function CitizenDashboard() {
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'Status',     val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
-                    { label: 'Priority',   val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
-                    { label: 'Category',   val: selectedComplaint.category },
-                    { label: 'Filed On',   val: selectedComplaint.createdAt ? new Date(selectedComplaint.createdAt).toLocaleDateString() : '—' },
-                    { label: 'Location',   val: selectedComplaint.pinCode || selectedComplaint.location || '—' },
-                    { label: 'Department', val: selectedComplaint.department || 'Not Assigned' },
+                    { label: 'Status', val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
+                    { label: 'Priority', val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
+                    { label: 'Category', val: selectedComplaint.category },
+                    { label: 'Filed On', val: selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : '—' },
+                    { label: 'Location', val: selectedComplaint.location || '—' },
                   ].map(({ label, val }) => (
                     <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{label}</p>
@@ -271,39 +272,11 @@ export default function CitizenDashboard() {
                   ))}
                 </div>
 
-                {/* Citizen Info */}
-                <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/50 border border-zinc-700/40 p-4 space-y-2">
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Your Information</p>
-                  <div className="flex items-center gap-2 text-sm text-zinc-300">
-                    <User className="h-3.5 w-3.5 text-zinc-500" /> {selectedComplaint.citizenName}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-300">
-                    <Mail className="h-3.5 w-3.5 text-zinc-500" /> {selectedComplaint.citizenEmail}
-                  </div>
-                  {selectedComplaint.citizenPhone && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-300">
-                      <Phone className="h-3.5 w-3.5 text-zinc-500" /> {selectedComplaint.citizenPhone}
-                    </div>
-                  )}
-                </div>
-
-                {/* Timeline */}
-                {selectedComplaint.updates?.length > 0 && (
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Timeline</p>
-                    <div className="space-y-2 max-h-36 overflow-y-auto">
-                      {selectedComplaint.updates.map((u, i) => (
-                        <div key={i} className="flex gap-3">
-                          <div
-                            style={{ borderRadius: '0.4rem' }}
-                            className="h-5 w-5 flex-shrink-0 bg-zinc-700 flex items-center justify-center text-zinc-300 text-[10px]"
-                          >✓</div>
-                          <div>
-                            <p className="text-[10px] text-zinc-500">{u.date ? new Date(u.date).toLocaleDateString() : ''}</p>
-                            <p className="text-xs text-zinc-300">{u.message}</p>
-                          </div>
-                        </div>
-                      ))}
+                {selectedComplaint.before_photo && (
+                  <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Evidence Image</p>
+                    <div style={{ borderRadius: '0.4rem' }} className="overflow-hidden border border-zinc-700 max-h-52 bg-zinc-800">
+                      <img src={selectedComplaint.before_photo} alt="Complaint evidence" className="w-full h-full object-cover" />
                     </div>
                   </div>
                 )}
