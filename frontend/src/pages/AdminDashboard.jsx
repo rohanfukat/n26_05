@@ -194,7 +194,7 @@ export default function AdminDashboard() {
     if (Object.keys(payload).length === 0) { setUpdating(false); setSelectedComplaint(null); return }
     const updated = await updateComplaint(selectedComplaint.id, payload)
     if (updated) {
-      fetchGrievanceLogs()
+      // Update local grievanceLogs without re-fetching (avoids loading spinner)
       fetchStatistics()
     }
     setUpdating(false)

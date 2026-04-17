@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react'
+import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, FileText, User, Phone, Mail } from 'lucide-react'
@@ -239,76 +240,79 @@ export default function CitizenDashboard() {
         </div>
       </div>
 
-      {/* Detail Modal */}
-      <AnimatePresence>
-        {selectedComplaint && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-            onClick={() => setSelectedComplaint(null)}
-          >
+      {/* Detail Modal — portaled to body to escape z-index stacking context */}
+      {ReactDOM.createPortal(
+        <AnimatePresence>
+          {selectedComplaint && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={e => e.stopPropagation()}
-              style={{ borderRadius: '0.4rem' }}
-              className="w-full max-w-2xl max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[100]"
+              onClick={() => setSelectedComplaint(null)}
             >
-              {/* Modal header */}
-              <div className="flex items-start justify-between p-6 border-b border-zinc-800 flex-shrink-0">
-                <div>
-                  <h2 className="text-lg font-bold text-white">{selectedComplaint.issue || selectedComplaint.title}</h2>
-                  <p className="text-xs font-mono text-zinc-500 mt-1">{selectedComplaint.complaint_id || selectedComplaint.id}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedComplaint(null)}
-                  className="text-zinc-500 hover:text-white text-xl leading-none ml-4"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Modal body */}
-              <div className="overflow-y-auto p-6 space-y-5">
-                <p className="text-sm text-zinc-400">{selectedComplaint.description}</p>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Status', val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
-                    { label: 'Priority', val: `${getPriorityBadge(selectedComplaint.priority)} ${selectedComplaint.priority?.toUpperCase()}` },
-                    { label: 'Category', val: selectedComplaint.category },
-                    { label: 'Department', val: selectedComplaint.dept_allocated || 'Not Assigned' },
-                    { label: 'Filed On', val: selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : '—' },
-                    { label: 'Location', val: selectedComplaint.location || '—' },
-                  ].map(({ label, val }) => (
-                    <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">
-                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{label}</p>
-                      <p className="text-sm font-semibold text-zinc-200">{val}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {selectedComplaint.before_photo && (
-                  <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
-                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Evidence Image</p>
-                    <div style={{ borderRadius: '0.4rem' }} className="overflow-hidden border border-zinc-700 max-h-52 bg-zinc-800">
-                      <img src={selectedComplaint.before_photo} alt="Complaint evidence" className="w-full h-full object-cover" />
-                    </div>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={e => e.stopPropagation()}
+                style={{ borderRadius: '0.4rem' }}
+                className="w-full max-w-2xl max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-700/60 shadow-[0_24px_80px_rgba(0,0,0,0.8)] flex flex-col"
+              >
+                {/* Modal header */}
+                <div className="flex items-start justify-between p-6 border-b border-zinc-800 flex-shrink-0">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">{selectedComplaint.issue || selectedComplaint.title}</h2>
+                    <p className="text-xs font-mono text-zinc-500 mt-1">{selectedComplaint.complaint_id || selectedComplaint.id}</p>
                   </div>
-                )}
+                  <button
+                    onClick={() => setSelectedComplaint(null)}
+                    className="text-zinc-500 hover:text-white text-xl leading-none ml-4"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-                <Button variant="secondary" onClick={() => setSelectedComplaint(null)} className="w-full">
-                  Close
-                </Button>
-              </div>
+                {/* Modal body */}
+                <div className="overflow-y-auto p-6 space-y-5">
+                  <p className="text-sm text-zinc-400">{selectedComplaint.description}</p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Status', val: STATUS_LABEL[selectedComplaint.status] || selectedComplaint.status },
+                      { label: 'Priority', val: selectedComplaint.priority?.toUpperCase() || '—' },
+                      { label: 'Category', val: selectedComplaint.category },
+                      { label: 'Department', val: selectedComplaint.dept_allocated || 'Not Assigned' },
+                      { label: 'Filed On', val: selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : '—' },
+                      { label: 'Location', val: selectedComplaint.location || '—' },
+                    ].map(({ label, val }) => (
+                      <div key={label} style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{label}</p>
+                        <p className="text-sm font-semibold text-zinc-200">{val}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedComplaint.before_photo && (
+                    <div style={{ borderRadius: '0.4rem' }} className="bg-zinc-800/60 border border-zinc-700/50 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Evidence Image</p>
+                      <div style={{ borderRadius: '0.4rem' }} className="overflow-hidden border border-zinc-700 max-h-52 bg-zinc-800">
+                        <img src={selectedComplaint.before_photo} alt="Complaint evidence" className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  )}
+
+                  <Button variant="secondary" onClick={() => setSelectedComplaint(null)} className="w-full">
+                    Close
+                  </Button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </PageLayout>
   )
 }
