@@ -1053,6 +1053,7 @@ async def create_grievance(
 
     # ── Upload before_photo to Cloudinary if provided ────────────────────────
     photo_url: Optional[str] = None
+    cached_text_result = None  # Reuse text classification from image comparison
     if before_photo is not None:
         # Read bytes first (stream is consumed after first read)
         image_bytes = await before_photo.read()
@@ -1062,6 +1063,9 @@ async def create_grievance(
         if combined_text:
             cleaned = clean_text(combined_text)
             ai_result = await analyze_and_compare(combined_text, cleaned, image_bytes)
+
+            # Cache the text classification to avoid a redundant Gemini call later
+            cached_text_result = ai_result.get("text_analysis")
 
             comparison = ai_result.get("comparison", {})
             match_status = comparison.get("match_status", "unclear")
@@ -1086,11 +1090,23 @@ async def create_grievance(
                 detail=str(exc),
             )
 
-    # ── Always auto-classify using Gemini AI ─────────────────────────────────
-    resolved_category, priority, dept_allocated = classify_grievance(
-        issue=issue or "",
-        description=description or "",
-    )
+    # ── Auto-classify using Gemini AI (reuse cached result if available) ─────
+    if cached_text_result and cached_text_result.get("processed_by") != "fallback":
+        # Reuse classification from image comparison — no extra Gemini call
+        from classifier import assign_department
+        ALLOWED_CATEGORIES = ['Water', 'Road', 'Garbage', 'Electricity', 'Traffic', 'Drainage', 'Infrastructure', 'Environment', 'General']
+        raw_text = f"{issue or ''} {description or ''}"
+        resolved_category = cached_text_result.get("category", "General")
+        if resolved_category not in ALLOWED_CATEGORIES:
+            cat_lower = resolved_category.lower()
+            resolved_category = next((c for c in ALLOWED_CATEGORIES if c.lower() == cat_lower), "General")
+        priority = cached_text_result.get("severity", "medium")
+        dept_allocated = cached_text_result.get("department") or assign_department(raw_text, resolved_category)
+    else:
+        resolved_category, priority, dept_allocated = classify_grievance(
+            issue=issue or "",
+            description=description or "",
+        )
 
     grievance = Grievance(
         complaint_id=_generate_complaint_id(),

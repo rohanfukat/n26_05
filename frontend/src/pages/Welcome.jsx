@@ -79,14 +79,14 @@ function ParticleField() {
         p.vx *= 0.99; p.vy *= 0.99
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-ctx.fillStyle = `rgba(255,255,255,${p.opacity})`
+        ctx.fillStyle = `rgba(255,255,255,${p.opacity})`
         ctx.fill()
         particlesRef.current.slice(i + 1).forEach((o) => {
           const dx2 = p.x - o.x; const dy2 = p.y - o.y
           const d2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
           if (d2 < 90) {
             ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(o.x, o.y)
-ctx.strokeStyle = `rgba(255,255,255,${0.09 * (1 - d2 / 90)})`
+            ctx.strokeStyle = `rgba(255,255,255,${0.09 * (1 - d2 / 90)})`
             ctx.stroke()
           }
         })
@@ -199,7 +199,7 @@ const AnimatedLogo = AnimatedLogoShared
 
 // ── Header ─────────────────────────────────────────────────────────────────────
 const navItems = [
-  
+
 ]
 
 function Header({ onGetStarted, onAnalytics }) {
@@ -475,6 +475,17 @@ export default function Welcome() {
               style={{ marginTop: 32, fontSize: 'clamp(16px, 2.5vw, 22px)', color: 'rgba(255,255,255,0.6)', maxWidth: 640, margin: '32px auto 0', lineHeight: 1.7 }}
             >
               GrievanceFlow helps public agencies capture, prioritize, and resolve complaints with clarity, accountability and elegant reporting.
+            </motion.p>
+
+            {/* WhatsApp Info */}
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              style={{ marginTop: 16, fontSize: 'clamp(14px, 2vw, 17px)', color: 'rgba(255,255,255,0.5)', maxWidth: 640, margin: '16px auto 0', lineHeight: 1.6 }}
+            >
+              To file a complaint or receive updates about your complaint, text <strong style={{ color: 'white' }}>Hi</strong> on WhatsApp to{' '}
+              <strong style={{ color: 'white', letterSpacing: '0.02em' }}>1 (555) 163-1982</strong>
             </motion.p>
 
             {/* CTA Buttons */}
