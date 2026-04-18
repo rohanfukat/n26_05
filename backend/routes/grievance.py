@@ -532,7 +532,7 @@ Return ONLY valid JSON, no markdown, no explanation."""
 
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-lite",
+            model_name="models/gemini-3.1-flash-lite-preview",
             generation_config={"temperature": 0.1, "max_output_tokens": 2000},
         )
         response = model.generate_content(prompt)

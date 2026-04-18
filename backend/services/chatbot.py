@@ -23,7 +23,7 @@ from services.grievance_service import save_grievance
 # ── Gemini complaint validator ────────────────────────────────────────────────
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 _VALIDATOR_MODEL = genai.GenerativeModel(
-    model_name="gemini-2.5-flash-lite",
+    model_name="models/gemini-3.1-flash-lite-preview",
     generation_config={"temperature": 0.0, "max_output_tokens": 50},
 )
 

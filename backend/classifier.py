@@ -19,7 +19,7 @@ IMAGE_TIMEOUT = 30  # seconds
 
 # ================= MODELS =================
 # Gemini 2.5 Flash Lite - Better rate limits: 2/10 RPM, 354/250K TPM
-MODEL_NAME = "gemini-2.5-flash-lite"
+MODEL_NAME = "models/gemini-3.1-flash-lite-preview"
 EMBED_MODEL = "models/gemini-embedding-001"
 
 TEXT_MODEL = genai.GenerativeModel(
