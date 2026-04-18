@@ -1426,7 +1426,7 @@ def update_grievance(
             except Exception as exc:
                 print(f"[WhatsApp] Failed to notify {phone_number}: {exc}")
 
-    return _to_response(grievance)
+    return _to_response(grievance, db)
 
 
 # ─────────────────────────────────────────

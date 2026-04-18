@@ -552,7 +552,9 @@ export default function AdminDashboard() {
                               <td className="py-3 px-4 text-xs text-zinc-400 max-w-[180px] truncate">{g.dept_allocated || 'Not Assigned'}</td>
                               <td className="py-3 px-4 text-xs text-zinc-600">{g.created_at ? new Date(g.created_at).toLocaleDateString() : '—'}</td>
                               <td className="py-3 px-4 text-center">
-                                <Button size="sm" onClick={() => setSelectedComplaint(g)}>View</Button>
+                                <Button size="sm" onClick={() => {setSelectedComplaint(g)
+                                  console.log("This is the complaint details:", g)
+                                }}>View</Button>
                               </td>
                             </motion.tr>
                           ))}
