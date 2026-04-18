@@ -7,7 +7,8 @@ router = APIRouter(prefix="/examine_image", tags=["Image Examination"])
 
 @router.post("/")
 async def examine_image(
-    title: str = Form(...),
+    title: str = Form(...)
+    ,
     description: str = Form(...),
     image: UploadFile = File(...),
 ):
